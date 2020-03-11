@@ -28,7 +28,17 @@ export class Jsonify implements IConfigurer {
     throw new Error('Please provide a correct app name')
   }
   public getAppSelector(appId: string): IAppSelector {
-    return this.findInApps(appId, 'el')
+    const elementFromConfig = this.findInApps(appId, 'el')
+    if (elementFromConfig) {
+      return elementFromConfig
+    } else {
+      const id = `${appId}_container`
+      return {
+        sel: `#${id}`,
+        attrs: [{ type: 'id', value: id }],
+        type: 'div'
+      }
+    }
   }
   public getAppUrl(appId: string): string {
     return this.findInApps(appId, 'url')

@@ -13,10 +13,14 @@ import {
   IRenderUnmount,
   IRendererCacheValues,
   IRepository,
-  AnyAppId
+  AnyAppId,
+  RenderMountElement,
+  IContainerCreator
 } from '../../types'
 import { createLoader } from '../../utils/createLoader'
 import { has } from '../../utils/has'
+
+const noop = new Function()
 
 @injectable()
 export class Htmlify implements IRenderer<AnyAppId> {
@@ -80,7 +84,8 @@ export class Htmlify implements IRenderer<AnyAppId> {
         subscribers: [],
         mount: undefined,
         unmount: undefined,
-        state: 'idle'
+        state: 'idle',
+        element: undefined
       })
     })
 
@@ -93,50 +98,110 @@ export class Htmlify implements IRenderer<AnyAppId> {
     }
     return true
   }
-  private createContainer(appIds: string[], loader): void {
-    appIds.forEach(id => {
-      const { type, attrs, sel } = this.getCacheValue(id).selector
-      const element = document.querySelector(sel)
-      let loaderHTML: HTMLElement
-      if (loader[id]) {
-        if (typeof loader === 'boolean') {
-          loaderHTML = createLoader()
-        } else {
-          loaderHTML = loader
-        }
+  private createContainer(args: IContainerCreator): void {
+    const { loader, id, element } = args
+    const cache = this.getCacheValue(id)
+    if (cache.state === 'mounted') return
+    const {
+      selector: { type, attrs, sel },
+      element: domReference
+    } = cache
+    let loaderHTML: HTMLElement
+    if (loader) {
+      if (typeof loader === 'boolean') {
+        loaderHTML = createLoader()
+      } else {
+        loaderHTML = loader
       }
-      if (!element) {
-        const node = document.createElement(type)
+    }
+
+    let domNode: HTMLElement | undefined
+
+    if (!element) {
+      // in case no element has been provided with the render call
+      if (domReference && document.contains(domReference)) {
+        console.log('HERE 2')
+        if (loaderHTML) {
+          domReference.appendChild(loaderHTML)
+        }
+      } else if (document.querySelector(sel)) {
+        console.log('HERE 1')
+        domNode = document.querySelector(sel)
+        if (loaderHTML) {
+          domNode.appendChild(loaderHTML)
+        }
+      } else {
+        console.log('HERE')
+        domNode = document.createElement(type)
         attrs.forEach(({ type: attributeType, value }) =>
-          node.setAttribute(attributeType, value)
+          domNode.setAttribute(attributeType, value)
         )
         if (loaderHTML) {
-          node.appendChild(loaderHTML)
+          domNode.appendChild(loaderHTML)
         }
-        document.body.appendChild(node)
-        return
+        document.body.appendChild(domNode)
       }
-      if (loaderHTML) {
-        element.appendChild(loaderHTML)
+    } else {
+      console.log('HERE 4', typeof element)
+      if (typeof element === 'string') {
+        domNode = document.querySelector(element)
+        if (!domNode) {
+          throw new Error(`Cannot find ${element} in the DOM`)
+        }
+      } else if (element instanceof HTMLElement) {
+        domNode = element
+      } else if (has(element, 'selector')) {
+        domNode = document.querySelector(element.selector)
+        if (!domNode) {
+          throw new Error(`Cannot find ${element.selector} in the DOM`)
+        }
+        if (element.shadow) {
+          const shadowRoot =
+            domNode.shadowRoot ||
+            domNode.attachShadow({
+              mode: 'open',
+              delegatesFocus: false
+            })
+
+          domNode = document.createElement(type)
+          attrs.forEach(({ type: attributeType, value }) =>
+            domNode.setAttribute(attributeType, value)
+          )
+          shadowRoot.appendChild(domNode)
+        }
+      } else {
+        throw new Error('Wrong element provided')
       }
-    })
+    }
+    if (domNode) {
+      this.setCacheValue(id, { ...cache, element: domNode })
+    }
   }
   private getRepositories(
     args: RendererMountArguments<AnyAppId> | RendererUnmountArguments<AnyAppId>
   ): IRepository {
-    let props = {}
-    let loader = {}
-    let onMount = {}
-    let onUnmount = {}
-
+    let props: { [key: string]: any } = {}
+    let onMount: { [key: string]: (...args: any[]) => void } = {}
+    let onUnmount: { [key: string]: (...args: any[]) => void } = {}
+    let element: { [key: string]: RenderMountElement } = {}
     if (!args) {
       let keys = []
       for (const key of this.cache.keys()) {
+        this.createContainer({
+          element: undefined,
+          id: key,
+          loader: false
+        })
         keys.push(key)
       }
       return { ids: keys }
     } else if (typeof args === 'string') {
       if (this.checkForElementInCache(args)) {
+        this.createContainer({
+          element: undefined,
+          id: args,
+          loader: false
+        })
         return { ids: [args] }
       }
     } else if (Array.isArray(args)) {
@@ -145,13 +210,19 @@ export class Htmlify implements IRenderer<AnyAppId> {
       >).map(appToMount => {
         if (typeof appToMount === 'string') {
           if (this.checkForElementInCache(appToMount)) {
+            this.createContainer({
+              element: undefined,
+              id: appToMount,
+              loader: false
+            })
             return appToMount
           }
         } else if (has(appToMount, 'id')) {
           const {
             id,
             props: appProps,
-            loader: appLoader,
+            element: appElement,
+            loader,
             onDestroy,
             onRender
           } = appToMount
@@ -159,41 +230,34 @@ export class Htmlify implements IRenderer<AnyAppId> {
             if (appProps) {
               props[id] = appProps
             }
-            if (appLoader) {
-              loader[id] = appLoader
-            }
             if (onRender) {
               onMount[id] = onRender
             }
             if (onDestroy) {
               onUnmount[id] = onDestroy
             }
+            this.createContainer({
+              element: appElement,
+              id,
+              loader
+            })
             return id
           }
         }
         throw new Error('Wrong Arguments supplied')
       })
-      return { ids, props, loader, onMount, onUnmount }
+      return { ids, props, onMount, onUnmount, element }
     }
     throw new Error('Wrong Arguments supplied')
   }
   mount(args: RendererMountArguments<AnyAppId>): void {
-    const {
-      ids: appIds,
-      onMount = {},
-      loader = {},
-      props = {}
-    } = this.getRepositories(args)
-    this.createContainer(appIds, loader)
+    const { ids: appIds, onMount = {}, props = {} } = this.getRepositories(args)
+
     appIds.map(id => {
       const cache = this.getCacheValue(id)
       if (cache.state === 'fetched' || cache.state === 'destroyed') {
-        if (typeof onMount[id] === 'function') {
-          cache.mount({ props, cb: onMount[id] })
-        } else {
-          cache.mount(props)
-        }
-
+        // merge if present
+        cache.mount({ props, cb: onMount[id] || noop, element: cache.element })
         this.setCacheValue(id, {
           ...cache,
           state: 'mounted',
@@ -220,11 +284,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
     appIds.map(id => {
       const cache = this.getCacheValue(id)
       if (cache.state === 'mounted') {
-        if (typeof onUnmount[id] === 'function') {
-          cache.unmount({ cb: onUnmount[id] })
-        } else {
-          cache.unmount()
-        }
+        cache.unmount({ cb: onUnmount[id] || noop, element: cache.element })
         this.setCacheValue(id, {
           ...cache,
           state: 'destroyed',

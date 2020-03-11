@@ -24,7 +24,7 @@ export interface IAppSelector {
 export interface IApp<T> {
   name: string
   id: T
-  el: IAppSelector
+  el?: IAppSelector
   global_dependencies: string[]
   url: string
 }
@@ -54,13 +54,19 @@ export interface IRendererCacheValues {
   mount: (...args: any) => any | undefined
   unmount: (...args: any) => any | undefined
   state: RendererState
+  element: HTMLElement | undefined
 }
 export type IRendererCache = Map<string, IRendererCacheValues>
-
+export interface IRenderElement {
+  selector: string
+  shadow: boolean
+}
+export type RenderMountElement = HTMLElement | IRenderElement | string
 export interface IRenderMount<T> {
   id: T
   props?: { [key: string]: any }
   loader?: boolean | HTMLElement
+  element?: RenderMountElement
   onRender?: (...args: any) => any
 }
 export interface IRenderUnmount<T> {
@@ -82,11 +88,15 @@ export type ProxyValues = 'render' | 'unmount'
 export interface IRepository {
   ids: string[]
   props?: { [key: string]: any }
-  loader?: { [key: string]: HTMLElement | boolean }
   onMount?: { [key: string]: (...args: any[]) => void }
   onUnmount?: { [key: string]: (...args: any[]) => void }
+  element?: { [key: string]: RenderMountElement }
 }
-
+export interface IContainerCreator {
+  id: string
+  loader?: HTMLElement | boolean
+  element: RenderMountElement | undefined
+}
 /**
  * For Injector
  */
