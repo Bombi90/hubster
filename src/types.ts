@@ -44,13 +44,14 @@ export type OnEventFunction = (
  *
  * For Renderer
  */
+
 export type RendererState =
   | 'idle'
   | 'fetched'
   | 'fetching'
   | 'rendered'
-  | 'rendering'
   | 'destroyed'
+  | 'rendering'
   | 'destroying'
 type OnRenderTypeArgs = {
   props: Props
@@ -69,6 +70,7 @@ export interface IRendererCacheValues {
   destroy: OnDestroyType
   state: RendererState
   element: HTMLElement | undefined
+  refs: { [key: string]: { element: HTMLElement; state: RendererState } }
 }
 export type IRendererCache = Map<string, IRendererCacheValues>
 export interface IRenderElement {
@@ -93,9 +95,12 @@ export interface IRenderRender<T> {
   loader?: boolean | HTMLElement
   element?: RenderRenderElement
   onRender?: Callback
+  ref?: string
 }
 export interface IRenderDestroy<T> {
   id: T
+  ref?: string
+  element?: RenderRenderElement
   onDestroy?: Callback
 }
 
@@ -111,15 +116,17 @@ export type ResourceType = 'script'
 export type ProxyValues = 'render' | 'destroy'
 
 export interface IRepository {
-  ids: string[]
+  ids: Set<string>
   props?: { [key: string]: any }
   onRender?: { [key: string]: Callback }
   onDestroy?: { [key: string]: Callback }
+  refs?: { [key: string]: Set<string> }
 }
 export interface IContainerCreator {
   id: string
   loader?: HTMLElement | boolean
   element: RenderRenderElement | undefined
+  ref?: string
 }
 /**
  * For Injector

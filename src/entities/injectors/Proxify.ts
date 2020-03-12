@@ -38,6 +38,8 @@ export class Proxify implements IInjector {
       apps: {}
     }
     appIds.forEach(id => {
+      console.log(cache, id)
+      console.log(cache.get(id))
       const { dependencies: appDependencies, url } = cache.get(id)
       appDependencies.forEach(dependency => {
         if (dependencies.global[dependency.id]) return
