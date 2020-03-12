@@ -14,7 +14,6 @@ import {
   IRendererCacheValues,
   IRepository,
   AnyAppId,
-  RenderMountElement,
   IContainerCreator
 } from '../../types'
 import { createLoader } from '../../utils/createLoader'
@@ -24,6 +23,26 @@ const noop = new Function()
 
 @injectable()
 export class Htmlify implements IRenderer<AnyAppId> {
+  static allowedElementsForShadowRoot = [
+    'article',
+    'aside',
+    'blockquote',
+    'body',
+    'div',
+    'footer',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'header',
+    'main',
+    'nav',
+    'p',
+    'section',
+    'span'
+  ]
   private configurer: IConfigurer
   private cache: IRendererCache = new Map()
   @inject(TYPES.IInjector) injector: IInjector
@@ -71,7 +90,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
       if (this.cache.has(id)) {
         return
       }
-      const selector = this.configurer.getAppSelector(id)
+      const selector = this.configurer.getAppDefaultSelector(id)
       const dependencies = this.configurer.getAppDependencies(id)
       const url = this.configurer.getAppUrl(id)
 
@@ -106,6 +125,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
       selector: { type, attrs, sel },
       element: domReference
     } = cache
+
     let loaderHTML: HTMLElement
     if (loader) {
       if (typeof loader === 'boolean') {
@@ -119,6 +139,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
 
     if (!element) {
       // in case no element has been provided with the render call
+
       if (domReference && document.contains(domReference)) {
         console.log('HERE 2')
         if (loaderHTML) {
@@ -150,29 +171,49 @@ export class Htmlify implements IRenderer<AnyAppId> {
         }
       } else if (element instanceof HTMLElement) {
         domNode = element
-      } else if (has(element, 'selector')) {
-        domNode = document.querySelector(element.selector)
-        if (!domNode) {
-          throw new Error(`Cannot find ${element.selector} in the DOM`)
+      } else if (typeof element === 'object' && !Array.isArray(element)) {
+        if ('selector' in element) {
+          const { selector } = element
+          domNode = document.querySelector(selector)
+          if (!domNode) {
+            throw new Error(`Cannot find ${selector} in the DOM`)
+          }
+        } else if ('node' in element) {
+          const { node } = element
+          domNode = node
+        } else {
+          throw new Error('Wrong Element provided')
         }
         if (element.shadow) {
+          if (
+            !Htmlify.allowedElementsForShadowRoot.includes(
+              domNode.nodeName.toLowerCase()
+            )
+          ) {
+            throw new Error(
+              'The node you provided does not support Shadow Root'
+            )
+          }
           const shadowRoot =
             domNode.shadowRoot ||
             domNode.attachShadow({
               mode: 'open',
               delegatesFocus: false
             })
-
-          domNode = document.createElement(type)
-          attrs.forEach(({ type: attributeType, value }) =>
-            domNode.setAttribute(attributeType, value)
-          )
-          shadowRoot.appendChild(domNode)
+          const elementAlreadyInShadowRoot = shadowRoot.querySelector(sel)
+          if (elementAlreadyInShadowRoot) {
+            domNode = elementAlreadyInShadowRoot as HTMLElement
+          } else {
+            domNode = document.createElement(type)
+            attrs.forEach(({ type: attributeType, value }) =>
+              domNode.setAttribute(attributeType, value)
+            )
+            shadowRoot.appendChild(domNode)
+          }
         }
-      } else {
-        throw new Error('Wrong element provided')
       }
     }
+
     if (domNode) {
       this.setCacheValue(id, { ...cache, element: domNode })
     }
@@ -180,10 +221,6 @@ export class Htmlify implements IRenderer<AnyAppId> {
   private getRepositories(
     args: RendererMountArguments<AnyAppId> | RendererUnmountArguments<AnyAppId>
   ): IRepository {
-    let props: { [key: string]: any } = {}
-    let onMount: { [key: string]: (...args: any[]) => void } = {}
-    let onUnmount: { [key: string]: (...args: any[]) => void } = {}
-    let element: { [key: string]: RenderMountElement } = {}
     if (!args) {
       let keys = []
       for (const key of this.cache.keys()) {
@@ -204,7 +241,11 @@ export class Htmlify implements IRenderer<AnyAppId> {
         })
         return { ids: [args] }
       }
+      throw new Error(`Element ${args} not bound`)
     } else if (Array.isArray(args)) {
+      let props: { [key: string]: any } = {}
+      let onMount: { [key: string]: (...args: any[]) => void } = {}
+      let onUnmount: { [key: string]: (...args: any[]) => void } = {}
       const ids = (args as Array<
         (IRenderMount<AnyAppId> & IRenderUnmount<AnyAppId>) | string
       >).map(appToMount => {
@@ -246,7 +287,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
         }
         throw new Error('Wrong Arguments supplied')
       })
-      return { ids, props, onMount, onUnmount, element }
+      return { ids, props, onMount, onUnmount }
     }
     throw new Error('Wrong Arguments supplied')
   }
@@ -256,7 +297,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
     appIds.map(id => {
       const cache = this.getCacheValue(id)
       if (cache.state === 'fetched' || cache.state === 'destroyed') {
-        // merge if present
+        // TODO: merge if present
         cache.mount({ props, cb: onMount[id] || noop, element: cache.element })
         this.setCacheValue(id, {
           ...cache,
@@ -284,6 +325,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
     appIds.map(id => {
       const cache = this.getCacheValue(id)
       if (cache.state === 'mounted') {
+        // TODO: merge if present
         cache.unmount({ cb: onUnmount[id] || noop, element: cache.element })
         this.setCacheValue(id, {
           ...cache,

@@ -58,10 +58,21 @@ export interface IRendererCacheValues {
 }
 export type IRendererCache = Map<string, IRendererCacheValues>
 export interface IRenderElement {
-  selector: string
-  shadow: boolean
+  shadow?: boolean
 }
-export type RenderMountElement = HTMLElement | IRenderElement | string
+export interface IRenderElementWithSelector extends IRenderElement {
+  selector: string
+}
+export interface IRenderElementWithNode extends IRenderElement {
+  node: HTMLElement
+}
+
+export type RenderMountElement =
+  | HTMLElement
+  | IRenderElementWithSelector
+  | IRenderElementWithNode
+  | string
+
 export interface IRenderMount<T> {
   id: T
   props?: { [key: string]: any }
@@ -90,7 +101,6 @@ export interface IRepository {
   props?: { [key: string]: any }
   onMount?: { [key: string]: (...args: any[]) => void }
   onUnmount?: { [key: string]: (...args: any[]) => void }
-  element?: { [key: string]: RenderMountElement }
 }
 export interface IContainerCreator {
   id: string
@@ -134,7 +144,7 @@ export const TYPES = {
 }
 
 export interface IConfigurer {
-  getAppSelector(appId: string): IAppSelector
+  getAppDefaultSelector(appId: string): IAppSelector
   getAppUrl(appId: string): string
   getAppDependencies(appId: string): IGlobalDependency[]
   setConfiguration<AppId extends AnyAppId>(
