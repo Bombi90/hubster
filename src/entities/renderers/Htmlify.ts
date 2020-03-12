@@ -18,12 +18,13 @@ import {
 } from '../../types'
 import { createLoader } from '../../utils/createLoader'
 import { has } from '../../utils/has'
+import { Hubster } from '../../Hubster'
 
 const noop = new Function()
 
 @injectable()
 export class Htmlify implements IRenderer<AnyAppId> {
-  static allowedElementsForShadowRoot = [
+  static allowedElementsForShadowRoot: string[] = [
     'article',
     'aside',
     'blockquote',
@@ -82,7 +83,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
       }
     }
 
-    if (!has(window, id)) window[id] = new Proxy({}, handler)
+    if (!has(Hubster.on, id)) Hubster.on[id] = new Proxy({}, handler)
   }
 
   public create(appIds: string[]): void {

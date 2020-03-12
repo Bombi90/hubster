@@ -1,5 +1,5 @@
 import { Hubster } from './Hubster'
-import { IHubster, IConfiguration } from './types'
+import { IHubster, IConfiguration, OnEventFunction } from './types'
 
 export function createHub<AppId extends string>(
   config: IConfiguration<AppId>
@@ -11,10 +11,12 @@ declare global {
   interface Window {
     Hubster: {
       createHub: typeof createHub
+      on: OnEventFunction
     }
   }
 }
 
 window.Hubster = {
-  createHub
+  createHub,
+  on: Hubster.on
 }

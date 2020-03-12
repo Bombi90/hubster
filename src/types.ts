@@ -1,6 +1,7 @@
 // for enforcement
 export type AnyAppId = string
-
+export type Callback = (...args: any[]) => void | any
+export type EventValues = ProxyValues
 interface IElementAttribute {
   type: string
   value: string
@@ -32,6 +33,11 @@ export interface IConfiguration<T extends AnyAppId> {
   apps: IApp<T>[]
   global_dependencies: IGlobalDependency[]
 }
+export type OnEventFunction = (
+  event: EventValues,
+  id: string,
+  callback: Callback
+) => any | void
 
 /**
  *
@@ -50,9 +56,9 @@ export interface IRendererCacheValues {
   selector: IAppSelector
   dependencies: IGlobalDependency[]
   url: string
-  subscribers: Array<(...args: any[]) => any>
-  mount: (...args: any) => any | undefined
-  unmount: (...args: any) => any | undefined
+  subscribers: Array<Callback>
+  mount: (...args: any) => any
+  unmount: (...args: any) => any
   state: RendererState
   element: HTMLElement | undefined
 }
@@ -78,11 +84,11 @@ export interface IRenderMount<T> {
   props?: { [key: string]: any }
   loader?: boolean | HTMLElement
   element?: RenderMountElement
-  onRender?: (...args: any) => any
+  onRender?: Callback
 }
 export interface IRenderUnmount<T> {
   id: T
-  onDestroy?: (...args: any) => any
+  onDestroy?: Callback
 }
 
 export type RendererMountArguments<AppId extends AnyAppId> =
@@ -99,8 +105,8 @@ export type ProxyValues = 'render' | 'unmount'
 export interface IRepository {
   ids: string[]
   props?: { [key: string]: any }
-  onMount?: { [key: string]: (...args: any[]) => void }
-  onUnmount?: { [key: string]: (...args: any[]) => void }
+  onMount?: { [key: string]: Callback }
+  onUnmount?: { [key: string]: Callback }
 }
 export interface IContainerCreator {
   id: string
@@ -116,9 +122,8 @@ export interface IInjectorResource {
   appId: string | undefined
 }
 
-export type Thenable = { ['then']: (...args: any[]) => void }
+export type Thenable = { ['then']: Callback }
 export interface IInjectorStatePromises {
-  //   resources: IInjectorResource[]
   deferreds: Promise<{ [key: string]: any }>[]
   thenables: Thenable[]
 }
