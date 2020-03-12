@@ -3,14 +3,14 @@ import 'reflect-metadata'
 import {
   IRenderer,
   IConfigurer,
-  RendererMountArguments,
-  RendererUnmountArguments,
+  RendererRenderArguments,
+  RendererDestroyArguments,
   IRendererCache,
   TYPES,
   IInjector,
   ProxyValues,
-  IRenderMount,
-  IRenderUnmount,
+  IRenderRender,
+  IRenderDestroy,
   IRendererCacheValues,
   IRepository,
   AnyAppId,
@@ -19,8 +19,6 @@ import {
 import { createLoader } from '../../utils/createLoader'
 import { has } from '../../utils/has'
 import { Hubster } from '../../Hubster'
-
-const noop = new Function()
 
 @injectable()
 export class Htmlify implements IRenderer<AnyAppId> {
@@ -64,13 +62,13 @@ export class Htmlify implements IRenderer<AnyAppId> {
       set: (obj, prop: ProxyValues, value: (...args: []) => {}) => {
         const cache = this.getCacheValue(id)
         if (prop === 'render') {
-          cache.mount = value
+          cache.render = value
         }
-        if (prop === 'unmount') {
-          cache.unmount = value
+        if (prop === 'destroy') {
+          cache.destroy = value
         }
         obj[prop] = value
-        if (cache.mount && cache.unmount) {
+        if (cache.render && cache.destroy) {
           cache.subscribers.map(fn => {
             fn()
           })
@@ -102,8 +100,8 @@ export class Htmlify implements IRenderer<AnyAppId> {
         dependencies,
         url,
         subscribers: [],
-        mount: undefined,
-        unmount: undefined,
+        render: undefined,
+        destroy: undefined,
         state: 'idle',
         element: undefined
       })
@@ -121,7 +119,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
   private createContainer(args: IContainerCreator): void {
     const { loader, id, element } = args
     const cache = this.getCacheValue(id)
-    if (cache.state === 'mounted') return
+    if (cache.state === 'rendered') return
     const {
       selector: { type, attrs, sel },
       element: domReference
@@ -220,127 +218,147 @@ export class Htmlify implements IRenderer<AnyAppId> {
     }
   }
   private getRepositories(
-    args: RendererMountArguments<AnyAppId> | RendererUnmountArguments<AnyAppId>
+    args:
+      | RendererRenderArguments<AnyAppId>
+      | RendererDestroyArguments<AnyAppId>,
+    isRendering: boolean
   ): IRepository {
     if (!args) {
       let keys = []
       for (const key of this.cache.keys()) {
-        this.createContainer({
-          element: undefined,
-          id: key,
-          loader: false
-        })
+        isRendering &&
+          this.createContainer({
+            element: undefined,
+            id: key,
+            loader: false
+          })
         keys.push(key)
       }
       return { ids: keys }
     } else if (typeof args === 'string') {
       if (this.checkForElementInCache(args)) {
-        this.createContainer({
-          element: undefined,
-          id: args,
-          loader: false
-        })
+        isRendering &&
+          this.createContainer({
+            element: undefined,
+            id: args,
+            loader: false
+          })
         return { ids: [args] }
       }
       throw new Error(`Element ${args} not bound`)
     } else if (Array.isArray(args)) {
       let props: { [key: string]: any } = {}
-      let onMount: { [key: string]: (...args: any[]) => void } = {}
-      let onUnmount: { [key: string]: (...args: any[]) => void } = {}
+      let onRender: { [key: string]: (...args: any[]) => void } = {}
+      let onDestroy: { [key: string]: (...args: any[]) => void } = {}
       const ids = (args as Array<
-        (IRenderMount<AnyAppId> & IRenderUnmount<AnyAppId>) | string
-      >).map(appToMount => {
-        if (typeof appToMount === 'string') {
-          if (this.checkForElementInCache(appToMount)) {
-            this.createContainer({
-              element: undefined,
-              id: appToMount,
-              loader: false
-            })
-            return appToMount
+        (IRenderRender<AnyAppId> & IRenderDestroy<AnyAppId>) | string
+      >).map(appToRender => {
+        if (typeof appToRender === 'string') {
+          if (this.checkForElementInCache(appToRender)) {
+            isRendering &&
+              this.createContainer({
+                element: undefined,
+                id: appToRender,
+                loader: false
+              })
+            return appToRender
           }
-        } else if (has(appToMount, 'id')) {
+        } else if (has(appToRender, 'id')) {
           const {
             id,
             props: appProps,
             element: appElement,
             loader,
-            onDestroy,
-            onRender
-          } = appToMount
+            onDestroy: appOnDestroy,
+            onRender: appOnRender
+          } = appToRender
           if (this.checkForElementInCache(id)) {
             if (appProps) {
               props[id] = appProps
             }
             if (onRender) {
-              onMount[id] = onRender
+              onRender[id] = appOnRender
             }
             if (onDestroy) {
-              onUnmount[id] = onDestroy
+              onDestroy[id] = appOnDestroy
             }
-            this.createContainer({
-              element: appElement,
-              id,
-              loader
-            })
+            isRendering &&
+              this.createContainer({
+                element: appElement,
+                id,
+                loader
+              })
             return id
           }
         }
         throw new Error('Wrong Arguments supplied')
       })
-      return { ids, props, onMount, onUnmount }
+      return { ids, props, onRender, onDestroy }
     }
     throw new Error('Wrong Arguments supplied')
   }
-  mount(args: RendererMountArguments<AnyAppId>): void {
-    const { ids: appIds, onMount = {}, props = {} } = this.getRepositories(args)
+  render(args: RendererRenderArguments<AnyAppId>): void {
+    const { ids: appIds, onRender = {}, props = {} } = this.getRepositories(
+      args,
+      true
+    )
 
     appIds.map(id => {
       const cache = this.getCacheValue(id)
+      console.log(cache)
       if (cache.state === 'fetched' || cache.state === 'destroyed') {
-        // TODO: merge if present
-        cache.mount({ props, cb: onMount[id] || noop, element: cache.element })
+        requestAnimationFrame(() => {
+          cache.render({
+            props,
+            ...(onRender[id] && { onRender: onRender[id] }),
+            element: cache.element
+          })
+        })
         this.setCacheValue(id, {
           ...cache,
-          state: 'mounted',
+          state: 'rendered',
           subscribers: []
         })
-      } else if (cache.state !== 'mounted') {
+      } else if (cache.state !== 'rendered') {
         const self = this
         this.setCacheValue(id, {
           ...cache,
           subscribers: [
-            ...cache.subscribers.filter(fn => fn.name !== 'mount'),
-            function mount() {
-              self.mount(args)
+            ...cache.subscribers.filter(fn => fn.name !== 'render'),
+            function render() {
+              self.render(args)
             }
           ],
-          state: 'mounting'
+          state: 'rendering'
         })
       }
     })
     return
   }
-  unmount(args: RendererUnmountArguments<AnyAppId>): void {
-    const { ids: appIds, onUnmount = {} } = this.getRepositories(args)
+  destroy(args: RendererDestroyArguments<AnyAppId>): void {
+    const { ids: appIds, onDestroy = {} } = this.getRepositories(args, false)
     appIds.map(id => {
       const cache = this.getCacheValue(id)
-      if (cache.state === 'mounted') {
-        // TODO: merge if present
-        cache.unmount({ cb: onUnmount[id] || noop, element: cache.element })
+      if (cache.state === 'rendered') {
+        requestAnimationFrame(() => {
+          cache.destroy({
+            ...(onDestroy[id] && { onDestroy: onDestroy[id] }),
+            element: cache.element
+          })
+        })
         this.setCacheValue(id, {
           ...cache,
           state: 'destroyed',
           subscribers: []
         })
-      } else if (cache.state === 'mounting') {
+      } else if (cache.state === 'rendering') {
         const self = this
         this.setCacheValue(id, {
           ...cache,
           subscribers: [
-            ...cache.subscribers.filter(fn => fn.name !== 'unmount'),
-            function unmount() {
-              self.unmount(args)
+            ...cache.subscribers.filter(fn => fn.name !== 'destroy'),
+            function destroy() {
+              self.destroy(args)
             }
           ],
           state: 'destroying'

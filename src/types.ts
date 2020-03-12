@@ -2,6 +2,7 @@
 export type AnyAppId = string
 export type Callback = (...args: any[]) => void | any
 export type EventValues = ProxyValues
+export type Props = { [key: string]: any }
 interface IElementAttribute {
   type: string
   value: string
@@ -47,18 +48,25 @@ export type RendererState =
   | 'idle'
   | 'fetched'
   | 'fetching'
-  | 'mounted'
-  | 'mounting'
+  | 'rendered'
+  | 'rendering'
   | 'destroyed'
   | 'destroying'
-
+type OnRenderTypeArgs = {
+  props: Props
+  onRender?: Callback
+  element: HTMLElement
+}
+type OnDestroyTypeArgs = { onDestroy?: Callback; element: HTMLElement }
+export type OnRenderType = (args: OnRenderTypeArgs) => any
+export type OnDestroyType = (args: OnDestroyTypeArgs) => any
 export interface IRendererCacheValues {
   selector: IAppSelector
   dependencies: IGlobalDependency[]
   url: string
   subscribers: Array<Callback>
-  mount: (...args: any) => any
-  unmount: (...args: any) => any
+  render: OnRenderType
+  destroy: OnDestroyType
   state: RendererState
   element: HTMLElement | undefined
 }
@@ -73,45 +81,45 @@ export interface IRenderElementWithNode extends IRenderElement {
   node: HTMLElement
 }
 
-export type RenderMountElement =
+export type RenderRenderElement =
   | HTMLElement
   | IRenderElementWithSelector
   | IRenderElementWithNode
   | string
 
-export interface IRenderMount<T> {
+export interface IRenderRender<T> {
   id: T
   props?: { [key: string]: any }
   loader?: boolean | HTMLElement
-  element?: RenderMountElement
+  element?: RenderRenderElement
   onRender?: Callback
 }
-export interface IRenderUnmount<T> {
+export interface IRenderDestroy<T> {
   id: T
   onDestroy?: Callback
 }
 
-export type RendererMountArguments<AppId extends AnyAppId> =
-  | Array<IRenderMount<AppId> | AppId>
+export type RendererRenderArguments<AppId extends AnyAppId> =
+  | Array<IRenderRender<AppId> | AppId>
   | AppId
   | void
-export type RendererUnmountArguments<AppId extends AnyAppId> =
-  | Array<IRenderUnmount<AppId> | AppId>
+export type RendererDestroyArguments<AppId extends AnyAppId> =
+  | Array<IRenderDestroy<AppId> | AppId>
   | AppId
   | void
 export type ResourceType = 'script'
-export type ProxyValues = 'render' | 'unmount'
+export type ProxyValues = 'render' | 'destroy'
 
 export interface IRepository {
   ids: string[]
   props?: { [key: string]: any }
-  onMount?: { [key: string]: Callback }
-  onUnmount?: { [key: string]: Callback }
+  onRender?: { [key: string]: Callback }
+  onDestroy?: { [key: string]: Callback }
 }
 export interface IContainerCreator {
   id: string
   loader?: HTMLElement | boolean
-  element: RenderMountElement | undefined
+  element: RenderRenderElement | undefined
 }
 /**
  * For Injector
@@ -163,14 +171,14 @@ export interface IFetcher {
 export interface IRenderer<AppId extends AnyAppId> {
   setConfigurer(configurer: IConfigurer): void
   create(appIds: string[]): void
-  mount(args: RendererMountArguments<AppId>): void
-  unmount(args: RendererUnmountArguments<AppId>): void
+  render(args: RendererRenderArguments<AppId>): void
+  destroy(args: RendererDestroyArguments<AppId>): void
 }
 export interface IInjector {
   fetchDependencies(appIds: string[], cache: IRendererCache): void
 }
 export interface IHubster<AppId extends AnyAppId> {
   bind(appIds: AppId[]): IHubster<AppId>
-  render(args: RendererMountArguments<AppId>): void
-  destroy(args: RendererUnmountArguments<AppId>): void
+  render(args: RendererRenderArguments<AppId>): void
+  destroy(args: RendererDestroyArguments<AppId>): void
 }

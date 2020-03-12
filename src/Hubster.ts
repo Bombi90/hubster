@@ -3,8 +3,8 @@ import {
   IConfigurer,
   IConfiguration,
   IRenderer,
-  RendererMountArguments,
-  RendererUnmountArguments,
+  RendererRenderArguments,
+  RendererDestroyArguments,
   TYPES,
   OnEventFunction
 } from './types'
@@ -32,10 +32,10 @@ export class Hubster<AppId extends string> implements IHubster<AppId> {
     this.renderer.create(appIds)
     return this
   }
-  public render(args: RendererMountArguments<AppId>) {
-    this.renderer.mount(args)
+  public render(args: RendererRenderArguments<AppId>) {
+    this.renderer.render(args)
   }
-  public destroy(args: RendererUnmountArguments<AppId>) {
-    this.renderer.unmount(args)
+  public destroy(args: RendererDestroyArguments<AppId>) {
+    this.renderer.destroy(args)
   }
 }
