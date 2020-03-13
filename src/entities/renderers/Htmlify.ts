@@ -14,7 +14,8 @@ import {
   IRendererCacheValues,
   IRepository,
   AnyAppId,
-  IContainerCreator
+  IContainerCreator,
+  ITransactor
 } from '../../types'
 import { createLoader } from '../../utils/createLoader'
 import { has } from '../../utils/has'
@@ -77,11 +78,15 @@ export class Htmlify implements IRenderer<AnyAppId> {
     'section',
     'span'
   ]
+  private transactor: ITransactor
   private configurer: IConfigurer
   private cache: IRendererCache = new Map()
   @inject(TYPES.IInjector) injector: IInjector
-  setConfigurer(configurer: IConfigurer): void {
+  init(configurer: IConfigurer, transactor: ITransactor): void {
     this.configurer = configurer
+    this.injector.setTransactor(transactor)
+    this.transactor = transactor
+    console.log(this.transactor)
   }
   private processes = {
     started: false,
@@ -93,7 +98,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
     if (this.cache.has(id)) {
       return this.cache.get(id)
     }
-    throw new Error('wrong key ( id ) provided')
+    throw new Error(`wrong key ( ${id} ) provided`)
   }
   private async setCacheValue(
     id: string,
@@ -106,24 +111,40 @@ export class Htmlify implements IRenderer<AnyAppId> {
   private setProxy(id: string) {
     const handler = {
       set: (obj, prop: ProxyValues, value: (...args: []) => {}) => {
-        const cache = this.getCacheValue(id)
         if (prop === 'render') {
-          cache.render = value
+          const transaction = new Date().valueOf()
+
+          this.processes.queue[transaction] = async () => {
+            await this.setCacheValue(id, {
+              ...this.getCacheValue(id),
+              render: value
+            })
+            const cache = this.getCacheValue(id)
+            if (cache.render && cache.destroy) {
+              cache.subscribers.map(fn => {
+                fn()
+              })
+            }
+          }
+          this.checkForProcesses()
         }
         if (prop === 'destroy') {
-          cache.destroy = value
+          const transaction = new Date().valueOf()
+          this.processes.queue[transaction] = async () => {
+            await this.setCacheValue(id, {
+              ...this.getCacheValue(id),
+              destroy: value
+            })
+            const cache = this.getCacheValue(id)
+            if (cache.render && cache.destroy) {
+              cache.subscribers.map(fn => {
+                fn()
+              })
+            }
+          }
+          this.checkForProcesses()
         }
         obj[prop] = value
-        if (cache.render && cache.destroy) {
-          cache.subscribers.map(fn => {
-            fn()
-          })
-
-          // this.setCacheValue(id, {
-          //   ...cache,
-          //   subscribers: []
-          // })
-        }
         return true
       }
     }
@@ -132,29 +153,6 @@ export class Htmlify implements IRenderer<AnyAppId> {
   }
 
   public create(appIds: string[]): void {
-    // const self = this
-    // if (this.processes.state === 'idle') {
-    //   this.processes.state = 'ready'
-    //   this.processes.queue = new Proxy(this.processes._originalQueue, {
-    //     get: function(target, property) {
-    //       console.log({ target, property })
-    //       if (property === 'shift' || property === 'push') {
-    //         self.checkForProcesses()
-    //       }
-    //       // property is index in this case
-    //       return target[property]
-    //     },
-    //     set: function(target, property, value, receiver) {
-    //       console.log({ receiver, target, value, property })
-    //       target[property] = value
-    //       // you have to return true to accept the changes
-    //       if (property === 'shift' || property === 'push') {
-    //         self.checkForProcesses()
-    //       }
-    //       return true
-    //     }
-    //   })
-    // }
     const transaction = new Date().valueOf()
     this.processes.queue[transaction] = async () => {
       await asyncForEach(appIds, async id => {
@@ -178,6 +176,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
           element: undefined,
           refs: {}
         })
+        console.log(this.cache)
       })
       this.injector.fetchDependencies(appIds, this.cache)
     }
@@ -439,10 +438,10 @@ export class Htmlify implements IRenderer<AnyAppId> {
                 props[id] = appProps
               }
               if (onRender) {
-                onRender[id] = appOnRender
+                onRender[ref || id] = appOnRender
               }
               if (onDestroy) {
-                onDestroy[id] = appOnDestroy
+                onDestroy[ref || id] = appOnDestroy
               }
               if (ref) {
                 if (refs[id]) {
@@ -476,7 +475,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
     throw new Error('Wrong Arguments supplied')
   }
   private async checkForProcesses() {
-    console.log('GIOVANE')
+    console.log('GIOVANE', this.processes.queue)
     if (this.processes.state === 'idle') {
       this.processes.state = 'running'
       const transaction = Math.min(
@@ -517,6 +516,9 @@ export class Htmlify implements IRenderer<AnyAppId> {
           await asyncForEach(refs[id], async ref => {
             const cache = this.getCacheValue(id)
             const refFromCache = cache.refs[ref]
+            if (!refFromCache) {
+              throw new Error('TODO: ERROR HERE')
+            }
             console.log({ ref, cache })
             if (
               cache.state === 'fetched' &&
@@ -527,7 +529,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
               requestAnimationFrame(() => {
                 cache.render({
                   props,
-                  ...(onRender[id] && { onRender: onRender[id] }),
+                  ...(onRender[ref] && { onRender: onRender[ref] }),
                   element: refFromCache.element
                 })
               })
@@ -549,7 +551,6 @@ export class Htmlify implements IRenderer<AnyAppId> {
               const f = function() {
                 self.render(
                   (args as Array<IRenderRender<AnyAppId>>).filter(arg => {
-                    console.log('ARG.REF', arg.ref)
                     if (arg.ref && arg.ref === ref) return true
                     return false
                   })
@@ -579,8 +580,8 @@ export class Htmlify implements IRenderer<AnyAppId> {
           })
         } else {
           const cache = this.getCacheValue(id)
+          console.log(cache)
           if (cache.state === 'fetched' || cache.state === 'destroyed') {
-            console.log('SHOULD NOT BE THERE')
             requestAnimationFrame(() => {
               cache.render({
                 props,
@@ -632,11 +633,14 @@ export class Htmlify implements IRenderer<AnyAppId> {
         if (refs[id]) {
           await asyncForEach(refs[id], async ref => {
             const refFromCache = cache.refs[ref]
+            if (!refFromCache) {
+              throw new Error('TODO: ERROR HERE')
+            }
             console.log(refFromCache)
             if (refFromCache.state === 'rendered') {
               requestAnimationFrame(() => {
                 cache.destroy({
-                  ...(onDestroy[id] && { onDestroy: onDestroy[id] }),
+                  ...(onDestroy[ref] && { onDestroy: onDestroy[ref] }),
                   element: refFromCache.element
                 })
               })

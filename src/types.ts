@@ -142,7 +142,6 @@ export interface IInjectorStatePromises {
   deferreds: Promise<{ [key: string]: any }>[]
   thenables: Thenable[]
 }
-export type InjectorState = Map<number, () => Promise<any>>
 export interface ISortedDependencies {
   globalDependencies: string[]
   appDependencies: { [key: string]: string }
@@ -160,7 +159,8 @@ export const TYPES = {
   IConfigurer: Symbol.for('IConfigurer'),
   IRenderer: Symbol.for('IRenderer'),
   IFetcher: Symbol.for('IFetcher'),
-  IInjector: Symbol.for('IInjector')
+  IInjector: Symbol.for('IInjector'),
+  ITransactor: Symbol.for('ITransactor')
 }
 
 export interface IConfigurer {
@@ -176,16 +176,26 @@ export interface IFetcher {
   getText(url: string): Promise<string>
 }
 export interface IRenderer<AppId extends AnyAppId> {
-  setConfigurer(configurer: IConfigurer): void
+  init(configurer: IConfigurer, transactor: ITransactor): void
   create(appIds: string[]): void
   render(args: RendererRenderArguments<AppId>): void
   destroy(args: RendererDestroyArguments<AppId>): void
 }
 export interface IInjector {
+  setTransactor(t: ITransactor): void
   fetchDependencies(appIds: string[], cache: IRendererCache): void
 }
 export interface IHubster<AppId extends AnyAppId> {
   bind(appIds: AppId[]): IHubster<AppId>
   render(args: RendererRenderArguments<AppId>): void
   destroy(args: RendererDestroyArguments<AppId>): void
+}
+
+// For Transactor
+export type TransactorState = 'idle' | 'running'
+export type Transaction = () => Promise<void>
+export type TransactionQueue = Map<number, Transaction>
+export interface ITransactor {
+  getTransaction(id: number): Transaction
+  setTransaction(value: Transaction): void
 }

@@ -6,7 +6,8 @@ import {
   RendererRenderArguments,
   RendererDestroyArguments,
   TYPES,
-  OnEventFunction
+  OnEventFunction,
+  ITransactor
 } from './types'
 import { lazyInject } from './entities/inversify.config'
 import { has } from './utils/has'
@@ -16,6 +17,8 @@ export class Hubster<AppId extends string> implements IHubster<AppId> {
   private renderer: IRenderer<AppId>
   @lazyInject(TYPES.IConfigurer)
   private configurer: IConfigurer
+  @lazyInject(TYPES.ITransactor)
+  private transactor: ITransactor
   public static on: OnEventFunction = function on(action, id, callback): void {
     if (!has(Hubster.on, id)) {
       throw new Error(
@@ -26,7 +29,7 @@ export class Hubster<AppId extends string> implements IHubster<AppId> {
   }
   constructor(config: IConfiguration<AppId>) {
     this.configurer.setConfiguration(config)
-    this.renderer.setConfigurer(this.configurer)
+    this.renderer.init(this.configurer, this.transactor)
   }
   public bind(appIds: AppId[]): Hubster<AppId> {
     this.renderer.create(appIds)
