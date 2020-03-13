@@ -173,7 +173,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
       appElement,
       loader,
       selector: { sel, type, attrs },
-      isRef
+      ref
     } = args
 
     let domNode: HTMLElement | undefined
@@ -183,11 +183,11 @@ export class Htmlify implements IRenderer<AnyAppId> {
       if (appElement && document.contains(appElement)) {
         // if the cache has an element saved already an this element is mounted in the DOM
         this.mountLoader(loader, appElement)
-      } else if (!isRef && document.querySelector(sel)) {
+      } else if (!ref && document.querySelector(sel)) {
         // if the element is the one from the default provided / auto generated selector and is in the DOM
         domNode = document.querySelector(sel)
         this.mountLoader(loader, domNode)
-      } else if (!isRef) {
+      } else if (!ref) {
         // if there's nothing in the DOM make one from the provided / auto generated selector
         domNode = document.createElement(type)
         attrs.forEach(({ type: attributeType, value }) =>
@@ -244,14 +244,12 @@ export class Htmlify implements IRenderer<AnyAppId> {
               mode: 'open',
               delegatesFocus: false
             })
-          const elementAlreadyInShadowRoot = shadowRoot.querySelector(sel)
+          const elementAlreadyInShadowRoot = shadowRoot.querySelector(`#${ref}`)
           if (elementAlreadyInShadowRoot) {
             domNode = elementAlreadyInShadowRoot as HTMLElement
           } else {
             domNode = document.createElement(type)
-            attrs.forEach(({ type: attributeType, value }) =>
-              domNode.setAttribute(attributeType, value)
-            )
+            domNode.setAttribute('id', ref)
             shadowRoot.appendChild(domNode)
             this.mountLoader(loader, domNode)
           }
@@ -287,7 +285,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
           ),
       loader,
       selector,
-      isRef: !!ref
+      ref
     })
 
     if (domNode) {

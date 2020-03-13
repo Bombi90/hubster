@@ -246,5 +246,5 @@ export interface ICreateDomNode {
   appElement: HTMLElement
   loader: Loader
   selector: IAppSelector
-  isRef: boolean
+  ref: string | undefined
 }
