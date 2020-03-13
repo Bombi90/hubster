@@ -1,6 +1,5 @@
 import {
   IInjector,
-  TYPES,
   IFetcher,
   IRendererCache,
   IGlobalDependency,
@@ -13,10 +12,11 @@ import {
 } from '../../types'
 import { injectable, inject } from 'inversify'
 import { injectHead } from '../../utils/injectHead'
+import { ETypes, ERendererStates } from '../../enums'
 
 @injectable()
 export class Proxify implements IInjector {
-  @inject(TYPES.IFetcher) fetcher: IFetcher
+  @inject(ETypes.FETCHER) fetcher: IFetcher
   transactor: ITransactor
   public setTransactor(t: ITransactor): void {
     this.transactor = t
@@ -91,7 +91,7 @@ export class Proxify implements IInjector {
       Object.entries(appDependencies).forEach(([id, url]) => {
         cache.set(id, {
           ...cache.get(id),
-          state: 'fetching'
+          state: ERendererStates.FETCHING
         })
         deferreds = deferreds.concat(
           this.fetcher.getText(url).then(text => {
@@ -131,7 +131,7 @@ export class Proxify implements IInjector {
           if (resolve.appId) {
             cache.set(resolve.appId, {
               ...cache.get(resolve.appId),
-              state: 'fetched'
+              state: ERendererStates.FETCHED
             })
           }
         })

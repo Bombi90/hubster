@@ -3,26 +3,53 @@ import {
   Transaction,
   TransactorState,
   TransactionQueue,
-  ITransactor
+  ITransactor,
+  Callback
 } from '../types'
+import { ETransactorStates } from '../enums'
+let requestIdleCallback
+if (!('requestIdleCallback' in window)) {
+  requestIdleCallback = (cb: Callback, opts: { [key: string]: any }) =>
+    setTimeout(cb, opts.timeout || 10)
+} else {
+  requestIdleCallback = window.requestIdleCallback
+}
 
 @injectable()
 export class Transactor implements ITransactor {
-  private status: TransactorState = 'idle'
+  private status: TransactorState = ETransactorStates.IDLE
   private queue: TransactionQueue = new Map()
   private getNewTransactionKey(): number {
-    return Date.now()
+    const key = Date.now()
+    console.log({ key })
+    return key
   }
   private async commit(): Promise<void> {
-    if (this.status === 'idle') {
-      this.status = 'running'
+    if (this.status === ETransactorStates.IDLE) {
+      this.status = ETransactorStates.RUNNING
       const key = Math.min(...this.queue.keys())
-      //   console.log('From transactor TRANSACTION N: ', key)
+      if (!Number.isInteger(key)) {
+        this.status = ETransactorStates.IDLE
+        return
+      }
       const transaction = this.queue.get(key)
-      this.queue.delete(key)
       await transaction()
+      console.log('COMMITTED ', { key })
+      this.queue.delete(key)
+      this.status = ETransactorStates.IDLE
+      requestIdleCallback(
+        () => {
+          this.commit()
+        },
+        { timeout: 10 }
+      )
     } else if (this.queue.size > 0) {
-      requestAnimationFrame(() => this.commit())
+      requestIdleCallback(
+        () => {
+          this.commit()
+        },
+        { timeout: 10 }
+      )
     }
   }
   getTransaction(id: number): Transaction {
@@ -32,8 +59,13 @@ export class Transactor implements ITransactor {
     return async () => Promise.resolve()
   }
   setTransaction(transaction: Transaction): void {
-    const key = this.getNewTransactionKey()
-    this.queue.set(key, transaction)
-    this.commit()
+    window.requestIdleCallback(
+      () => {
+        const key = this.getNewTransactionKey()
+        this.queue.set(key, transaction)
+        this.commit()
+      },
+      { timeout: 10 }
+    )
   }
 }
