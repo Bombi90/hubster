@@ -13,8 +13,8 @@ import { Htmlify } from './renderers/Htmlify'
 import { Fetchify } from './fetchers/Fetchify'
 import getDecorators from 'inversify-inject-decorators'
 import { Proxify } from './injectors/Proxify'
-import { Transactor } from '../utils/Transactor'
-import { Async } from '../utils/Async'
+import { Transactor } from './Transactor'
+import { Async } from './Async'
 import { ETypes } from '../enums'
 
 const hubContainer = new Container()

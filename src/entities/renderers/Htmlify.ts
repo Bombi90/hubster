@@ -31,6 +31,7 @@ import { isArray } from '../../utils/isArray'
 import { isObject } from '../../utils/isObject'
 import { defaultFromPath } from '../../utils/defaultFromPath'
 import { EHubsterEvents, ETypes, ERendererStates } from '../../enums'
+import { isString } from '../../utils/isString'
 
 @injectable()
 export class Htmlify implements IRenderer<AnyAppId> {
@@ -198,7 +199,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
       }
     } else {
       // in case some element in some shape has been provided with the render call
-      if (typeof element === 'string') {
+      if (isString(element)) {
         // if the element is a string - means is a selector - Must be then in the DOM
         domNode = document.querySelector(element)
         this.mountLoader(loader, domNode)
@@ -244,12 +245,16 @@ export class Htmlify implements IRenderer<AnyAppId> {
               mode: 'open',
               delegatesFocus: false
             })
-          const elementAlreadyInShadowRoot = shadowRoot.querySelector(`#${ref}`)
+          const id = sel.replace(/[^\w\s]/gi, '')
+          const shadowElementId = `${ref || id}_shadow`
+          const elementAlreadyInShadowRoot = shadowRoot.querySelector(
+            `#${shadowElementId}`
+          )
           if (elementAlreadyInShadowRoot) {
             domNode = elementAlreadyInShadowRoot as HTMLElement
           } else {
             domNode = document.createElement(type)
-            domNode.setAttribute('id', ref)
+            domNode.setAttribute('id', shadowElementId)
             shadowRoot.appendChild(domNode)
             this.mountLoader(loader, domNode)
           }
@@ -323,7 +328,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
         keys = [...keys, key]
       }
       return { ids: new Set(keys) }
-    } else if (typeof args === 'string') {
+    } else if (isString(args)) {
       // if the user provided a string to the render / destroy function means that only that one will be provided from the cache / created
       // no refs will be rendered
       if (this.checkForElementInCache(args)) {
@@ -346,7 +351,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
       await this.async.forEach<
         (IRendererRender<AnyAppId> & IRenderDestroy<AnyAppId>) | string
       >(args, async appToRender => {
-        if (typeof appToRender === 'string') {
+        if (isString(appToRender)) {
           // in this case the argument is the id of the app to render ( no refs allowed )
           if (this.checkForElementInCache(appToRender)) {
             isRendering &&
@@ -368,6 +373,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
             onRender,
             ref
           } = appToRender
+          console.log(props)
           if (this.checkForElementInCache(id)) {
             if (props) {
               repositoryProps[ref || id] = props
@@ -429,6 +435,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
         args,
         true
       )
+      console.log('repositories Props ', { props, args })
 
       await this.async.forEach<string>(appIds, async id => {
         // iterate through every "main" app id got from the Repositories
@@ -446,6 +453,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
                 refFromCache.state === ERendererStates.IDLE)
             ) {
               requestAnimationFrame(() => {
+                // TODO check how props are passed here
                 cache.render({
                   ...(props[ref] && { props: props[ref] }),
                   ...(onRender[ref] && { onRender: onRender[ref] }),
@@ -482,14 +490,14 @@ export class Htmlify implements IRenderer<AnyAppId> {
                 }
               }
               Object.defineProperty(f, 'name', {
-                value: `rendering_${ref}`,
+                value: `render_${ref}`,
                 writable: false
               })
               await this.setCacheValue(id, {
                 ...cache,
                 subscribers: [
                   ...cache.subscribers.filter(
-                    fn => fn.name !== `rendering_${ref}`
+                    fn => fn.name !== `render_${ref}`
                   ),
                   f
                 ],
@@ -511,7 +519,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
           ) {
             requestAnimationFrame(() => {
               cache.render({
-                props,
+                ...(props[id] && { props: props[id] }),
                 ...(onRender[id] && { onRender: onRender[id] }),
                 element: cache.element
               })
@@ -533,7 +541,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
                     self.render(
                       args.filter(argument => {
                         // in this instance put in the render queue only elements that have no ref attribute - hence the "main" app
-                        if (typeof argument === 'string' || !argument.ref) {
+                        if (isString(argument) || !argument.ref) {
                           return true
                         } else {
                           return false
@@ -606,14 +614,14 @@ export class Htmlify implements IRenderer<AnyAppId> {
                 }
               }
               Object.defineProperty(f, 'name', {
-                value: `destroying_${ref}`,
+                value: `destroy_${ref}`,
                 writable: false
               })
               await this.setCacheValue(id, {
                 ...cache,
                 subscribers: [
                   ...cache.subscribers.filter(
-                    fn => fn.name !== `destroying_${ref}`
+                    fn => fn.name !== `destroy_${ref}`
                   ),
                   f
                 ],
@@ -651,7 +659,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
                     self.destroy(
                       args.filter(argument => {
                         // in this instance put in the destroy queue only elements that have no ref attribute - hence the "main" app
-                        if (typeof argument === 'string' || !argument.ref) {
+                        if (isString(argument) || !argument.ref) {
                           return false
                         } else {
                           return true
