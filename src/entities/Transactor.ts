@@ -21,7 +21,6 @@ export class Transactor implements ITransactor {
   private queue: TransactionQueue = new Map()
   private getNewTransactionKey(): number {
     const key = Date.now()
-    console.log({ key })
     return key
   }
   private async commit(): Promise<void> {
@@ -34,7 +33,6 @@ export class Transactor implements ITransactor {
       }
       const transaction = this.queue.get(key)
       await transaction()
-      console.log('COMMITTED ', { key })
       this.queue.delete(key)
       this.status = ETransactorStates.IDLE
       requestIdleCallback(

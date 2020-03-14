@@ -55,8 +55,11 @@ export class Proxify implements IInjector {
     }
   }
   public fetchDependencies(appIds: string[], cache: IRendererCache): void {
+    const idsNotYetFetched = appIds.filter(
+      id => cache.get(id).state === ERendererStates.IDLE
+    )
     const { globalDependencies, appDependencies } = this.sortDependencies(
-      appIds,
+      idsNotYetFetched,
       cache
     )
     const transaction = this.prepareTransaction(

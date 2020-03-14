@@ -373,7 +373,6 @@ export class Htmlify implements IRenderer<AnyAppId> {
             onRender,
             ref
           } = appToRender
-          console.log(props)
           if (this.checkForElementInCache(id)) {
             if (props) {
               repositoryProps[ref || id] = props
@@ -435,7 +434,6 @@ export class Htmlify implements IRenderer<AnyAppId> {
         args,
         true
       )
-      console.log('repositories Props ', { props, args })
 
       await this.async.forEach<string>(appIds, async id => {
         // iterate through every "main" app id got from the Repositories
