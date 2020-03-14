@@ -1,8 +1,23 @@
+import { createHub } from '.'
+import { EHubsterEvents, ETransactorStates, ERendererStates } from './enums'
+
 // for enforcement
 export type AnyAppId = string
 export type Callback = (...args: any[]) => void | any
 export type EventValues = ProxyValues
 export type Props = { [key: string]: any }
+export type Loader = HTMLElement | boolean
+export type ObjectOf<T> = { [key: string]: T }
+export type HubsterEvents = EHubsterEvents.RENDER | EHubsterEvents.DESTROY
+interface IHubstserEventArguments<T extends string> {
+  [EHubsterEvents.RENDER]: RendererRenderArguments<T>
+  [EHubsterEvents.DESTROY]: RendererDestroyArguments<T>
+}
+// type ValueOf<T> = T[keyof T]
+export type HubsterEventArguments<K extends string, T> = T extends HubsterEvents
+  ? IHubstserEventArguments<K>[T]
+  : T
+
 interface IElementAttribute {
   type: string
   value: string
@@ -44,14 +59,16 @@ export type OnEventFunction = (
  *
  * For Renderer
  */
+
 export type RendererState =
-  | 'idle'
-  | 'fetched'
-  | 'fetching'
-  | 'rendered'
-  | 'rendering'
-  | 'destroyed'
-  | 'destroying'
+  | ERendererStates.IDLE
+  | ERendererStates.FETCHED
+  | ERendererStates.FETCHING
+  | ERendererStates.RENDERED
+  | ERendererStates.DESTROYED
+  | ERendererStates.RENDERING
+  | ERendererStates.DESTROYNG
+
 type OnRenderTypeArgs = {
   props: Props
   onRender?: Callback
@@ -69,6 +86,7 @@ export interface IRendererCacheValues {
   destroy: OnDestroyType
   state: RendererState
   element: HTMLElement | undefined
+  refs: { [key: string]: { element: HTMLElement; state: RendererState } }
 }
 export type IRendererCache = Map<string, IRendererCacheValues>
 export interface IRenderElement {
@@ -81,26 +99,29 @@ export interface IRenderElementWithNode extends IRenderElement {
   node: HTMLElement
 }
 
-export type RenderRenderElement =
+export type RendererRenderElement =
   | HTMLElement
   | IRenderElementWithSelector
   | IRenderElementWithNode
   | string
 
-export interface IRenderRender<T> {
+export interface IRendererRender<T> {
   id: T
   props?: { [key: string]: any }
-  loader?: boolean | HTMLElement
-  element?: RenderRenderElement
+  loader?: Loader
+  element?: RendererRenderElement
   onRender?: Callback
+  ref?: string
 }
 export interface IRenderDestroy<T> {
   id: T
+  ref?: string
+  element?: RendererRenderElement
   onDestroy?: Callback
 }
 
 export type RendererRenderArguments<AppId extends AnyAppId> =
-  | Array<IRenderRender<AppId> | AppId>
+  | Array<IRendererRender<AppId> | AppId>
   | AppId
   | void
 export type RendererDestroyArguments<AppId extends AnyAppId> =
@@ -108,18 +129,20 @@ export type RendererDestroyArguments<AppId extends AnyAppId> =
   | AppId
   | void
 export type ResourceType = 'script'
-export type ProxyValues = 'render' | 'destroy'
+export type ProxyValues = HubsterEvents
 
 export interface IRepository {
-  ids: string[]
+  ids: Set<string>
   props?: { [key: string]: any }
   onRender?: { [key: string]: Callback }
   onDestroy?: { [key: string]: Callback }
+  refs?: { [key: string]: Set<string> }
 }
 export interface IContainerCreator {
   id: string
-  loader?: HTMLElement | boolean
-  element: RenderRenderElement | undefined
+  loader?: Loader
+  element: RendererRenderElement | undefined
+  ref?: string
 }
 /**
  * For Injector
@@ -135,7 +158,6 @@ export interface IInjectorStatePromises {
   deferreds: Promise<{ [key: string]: any }>[]
   thenables: Thenable[]
 }
-export type InjectorState = Map<number, () => Promise<any>>
 export interface ISortedDependencies {
   globalDependencies: string[]
   appDependencies: { [key: string]: string }
@@ -148,14 +170,6 @@ export interface ITemporaryDependencies {
 /**
  * main Interfaces
  */
-export const TYPES = {
-  IHubster: Symbol.for('IHubster'),
-  IConfigurer: Symbol.for('IConfigurer'),
-  IRenderer: Symbol.for('IRenderer'),
-  IFetcher: Symbol.for('IFetcher'),
-  IInjector: Symbol.for('IInjector')
-}
-
 export interface IConfigurer {
   getAppDefaultSelector(appId: string): IAppSelector
   getAppUrl(appId: string): string
@@ -169,16 +183,68 @@ export interface IFetcher {
   getText(url: string): Promise<string>
 }
 export interface IRenderer<AppId extends AnyAppId> {
-  setConfigurer(configurer: IConfigurer): void
+  init(configurer: IConfigurer, transactor: ITransactor): void
   create(appIds: string[]): void
-  render(args: RendererRenderArguments<AppId>): void
-  destroy(args: RendererDestroyArguments<AppId>): void
+  trigger<TEvent extends HubsterEvents>(
+    event: TEvent,
+    args: HubsterEventArguments<AppId, TEvent>
+  ): void
 }
 export interface IInjector {
+  setTransactor(t: ITransactor): void
   fetchDependencies(appIds: string[], cache: IRendererCache): void
 }
 export interface IHubster<AppId extends AnyAppId> {
   bind(appIds: AppId[]): IHubster<AppId>
   render(args: RendererRenderArguments<AppId>): void
   destroy(args: RendererDestroyArguments<AppId>): void
+}
+
+// For Transactor
+export type TransactorState = ETransactorStates.IDLE | ETransactorStates.RUNNING
+export type Transaction = () => Promise<void>
+export type TransactionQueue = Map<number, Transaction>
+export interface ITransactor {
+  getTransaction(id: number): Transaction
+  setTransaction(value: Transaction): void
+}
+
+// For Async
+export interface IAsync {
+  setMutex<T>(fn: (() => T) | (() => PromiseLike<T>)): Promise<T>
+  forEach<T>(
+    array: Array<T> | Set<T>,
+    callback: (...args: T[]) => Promise<void>
+  )
+}
+
+type RequestIdleCallbackHandle = any
+type RequestIdleCallbackOptions = {
+  timeout: number
+}
+type RequestIdleCallbackDeadline = {
+  readonly didTimeout: boolean
+  timeRemaining: () => number
+}
+
+declare global {
+  interface Window {
+    requestIdleCallback: (
+      callback: (deadline: RequestIdleCallbackDeadline) => void,
+      opts?: RequestIdleCallbackOptions
+    ) => RequestIdleCallbackHandle
+    cancelIdleCallback: (handle: RequestIdleCallbackHandle) => void
+    Hubster: {
+      createHub: typeof createHub
+      on: OnEventFunction
+    }
+  }
+}
+
+export interface ICreateDomNode {
+  element: RendererRenderElement
+  appElement: HTMLElement
+  loader: Loader
+  selector: IAppSelector
+  ref: string | undefined
 }

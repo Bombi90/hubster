@@ -5,17 +5,20 @@ import {
   IRenderer,
   RendererRenderArguments,
   RendererDestroyArguments,
-  TYPES,
-  OnEventFunction
+  OnEventFunction,
+  ITransactor
 } from './types'
 import { lazyInject } from './entities/inversify.config'
 import { has } from './utils/has'
+import { EHubsterEvents, ETypes } from './enums'
 
 export class Hubster<AppId extends string> implements IHubster<AppId> {
-  @lazyInject(TYPES.IRenderer)
+  @lazyInject(ETypes.RENDERER)
   private renderer: IRenderer<AppId>
-  @lazyInject(TYPES.IConfigurer)
+  @lazyInject(ETypes.CONFIGURER)
   private configurer: IConfigurer
+  @lazyInject(ETypes.TRANSACTOR)
+  private transactor: ITransactor
   public static on: OnEventFunction = function on(action, id, callback): void {
     if (!has(Hubster.on, id)) {
       throw new Error(
@@ -26,16 +29,16 @@ export class Hubster<AppId extends string> implements IHubster<AppId> {
   }
   constructor(config: IConfiguration<AppId>) {
     this.configurer.setConfiguration(config)
-    this.renderer.setConfigurer(this.configurer)
+    this.renderer.init(this.configurer, this.transactor)
   }
   public bind(appIds: AppId[]): Hubster<AppId> {
     this.renderer.create(appIds)
     return this
   }
   public render(args: RendererRenderArguments<AppId>) {
-    this.renderer.render(args)
+    this.renderer.trigger<EHubsterEvents.RENDER>(EHubsterEvents.RENDER, args)
   }
   public destroy(args: RendererDestroyArguments<AppId>) {
-    this.renderer.destroy(args)
+    this.renderer.trigger<EHubsterEvents.DESTROY>(EHubsterEvents.DESTROY, args)
   }
 }

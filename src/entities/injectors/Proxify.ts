@@ -1,23 +1,26 @@
 import {
   IInjector,
-  TYPES,
   IFetcher,
-  InjectorState,
   IRendererCache,
   IGlobalDependency,
   Thenable,
   IInjectorResource,
   ISortedDependencies,
-  ITemporaryDependencies
+  ITemporaryDependencies,
+  ITransactor,
+  Transaction
 } from '../../types'
 import { injectable, inject } from 'inversify'
 import { injectHead } from '../../utils/injectHead'
+import { ETypes, ERendererStates } from '../../enums'
 
 @injectable()
 export class Proxify implements IInjector {
-  @inject(TYPES.IFetcher) fetcher: IFetcher
-  private state: InjectorState = new Map()
-  private transaction: number | boolean = false
+  @inject(ETypes.FETCHER) fetcher: IFetcher
+  transactor: ITransactor
+  public setTransactor(t: ITransactor): void {
+    this.transactor = t
+  }
   private sortResources(resources: IInjectorResource[]): IInjectorResource[] {
     return resources.sort((a, b) => {
       if (a.position < b.position) {
@@ -52,12 +55,14 @@ export class Proxify implements IInjector {
     }
   }
   public fetchDependencies(appIds: string[], cache: IRendererCache): void {
+    const idsNotYetFetched = appIds.filter(
+      id => cache.get(id).state === ERendererStates.IDLE
+    )
     const { globalDependencies, appDependencies } = this.sortDependencies(
-      appIds,
+      idsNotYetFetched,
       cache
     )
-    const transactionId = new Date().valueOf()
-    const transactionValue = this.prepareTransaction(
+    const transaction = this.prepareTransaction(
       {
         globalDependencies,
         appDependencies
@@ -65,21 +70,7 @@ export class Proxify implements IInjector {
       cache
     )
 
-    this.state.set(transactionId, transactionValue)
-    if (!this.transaction) {
-      this.transaction = transactionId
-      this.commit(transactionId)
-    }
-  }
-  private async commit(transactionId: number) {
-    const transaction = this.state.get(transactionId)
-    await transaction()
-    this.transaction = false
-    this.state.delete(transactionId)
-    const next = this.state.entries().next().value
-    if (next) {
-      this.commit(next)
-    }
+    this.transactor.setTransaction(transaction)
   }
   private checkWindowObject(deps: {
     [key: string]: IGlobalDependency
@@ -94,7 +85,7 @@ export class Proxify implements IInjector {
   private prepareTransaction(
     { globalDependencies, appDependencies }: ISortedDependencies,
     cache: IRendererCache
-  ): () => Promise<any> {
+  ): Transaction {
     return async () => {
       let deferreds: Promise<{ [key: string]: any }>[] = []
       let resources: IInjectorResource[] = []
@@ -103,7 +94,7 @@ export class Proxify implements IInjector {
       Object.entries(appDependencies).forEach(([id, url]) => {
         cache.set(id, {
           ...cache.get(id),
-          state: 'fetching'
+          state: ERendererStates.FETCHING
         })
         deferreds = deferreds.concat(
           this.fetcher.getText(url).then(text => {
@@ -143,7 +134,7 @@ export class Proxify implements IInjector {
           if (resolve.appId) {
             cache.set(resolve.appId, {
               ...cache.get(resolve.appId),
-              state: 'fetched'
+              state: ERendererStates.FETCHED
             })
           }
         })
