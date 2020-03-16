@@ -77,7 +77,7 @@ type OnRenderTypeArgs = {
 type OnDestroyTypeArgs = { onDestroy?: Callback; element: HTMLElement }
 export type OnRenderType = (args: OnRenderTypeArgs) => any
 export type OnDestroyType = (args: OnDestroyTypeArgs) => any
-export interface IRendererCacheValues {
+export interface IRendererContextValues {
   selector: IAppSelector
   dependencies: IGlobalDependency[]
   url: string
@@ -88,7 +88,7 @@ export interface IRendererCacheValues {
   element: HTMLElement | undefined
   refs: { [key: string]: { element: HTMLElement; state: RendererState } }
 }
-export type IRendererCache = Map<string, IRendererCacheValues>
+export type IRendererContext = Context<IRendererContextValues>
 export interface IRenderElement {
   shadow?: boolean
 }
@@ -167,9 +167,21 @@ export interface ITemporaryDependencies {
   apps: { [key: string]: string }
 }
 
+// For the contexter
+
+export type ContextUpdaterType = { ['set']: Callback; ['get']: Callback }
+
+export type ProxiedMap<K extends object> = Map<PropertyKey, K>
+
+export type Context<K extends object> = ProxiedMap<K>
+
 /**
  * main Interfaces
  */
+export interface IContexter {
+  createContext<K extends object>(): Context<K>
+}
+
 export interface IConfigurer {
   getAppDefaultSelector(appId: string): IAppSelector
   getAppUrl(appId: string): string
@@ -192,8 +204,11 @@ export interface IRenderer<AppId extends AnyAppId> {
 }
 export interface IInjector {
   setTransactor(t: ITransactor): void
-  fetchDependencies(appIds: string[], cache: IRendererCache): void
+  fetchDependencies(appIds: string[], context: ContextUpdaterType): void
 }
+// export interface IUpdater {
+//   createState(): Updatable
+// }
 export interface IHubster<AppId extends AnyAppId> {
   bind(appIds: AppId[]): IHubster<AppId>
   render(args: RendererRenderArguments<AppId>): void

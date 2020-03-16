@@ -1,21 +1,21 @@
 import {
   IInjector,
   IFetcher,
-  IRendererCache,
   IGlobalDependency,
   Thenable,
   IInjectorResource,
   ISortedDependencies,
   ITemporaryDependencies,
   ITransactor,
-  Transaction
+  Transaction,
+  ContextUpdaterType
 } from '../../types'
 import { injectable, inject } from 'inversify'
 import { injectHead } from '../../utils/injectHead'
 import { ETypes, ERendererStates } from '../../enums'
 
 @injectable()
-export class Proxify implements IInjector {
+export class Dependencify implements IInjector {
   @inject(ETypes.FETCHER) fetcher: IFetcher
   transactor: ITransactor
   public setTransactor(t: ITransactor): void {
@@ -34,14 +34,14 @@ export class Proxify implements IInjector {
   }
   private sortDependencies(
     appIds: string[],
-    cache: IRendererCache
+    context: ContextUpdaterType
   ): ISortedDependencies {
     let dependencies: ITemporaryDependencies = {
       global: {},
       apps: {}
     }
     appIds.forEach(id => {
-      const { dependencies: appDependencies, url } = cache.get(id)
+      const { dependencies: appDependencies, url } = context.get(id)
       appDependencies.forEach(dependency => {
         if (dependencies.global[dependency.id]) return
         dependencies.global[dependency.id] = dependency
@@ -54,20 +54,23 @@ export class Proxify implements IInjector {
       appDependencies: dependencies.apps
     }
   }
-  public fetchDependencies(appIds: string[], cache: IRendererCache): void {
+  public fetchDependencies(
+    appIds: string[],
+    context: ContextUpdaterType
+  ): void {
     const idsNotYetFetched = appIds.filter(
-      id => cache.get(id).state === ERendererStates.IDLE
+      id => context.get(id).state === ERendererStates.IDLE
     )
     const { globalDependencies, appDependencies } = this.sortDependencies(
       idsNotYetFetched,
-      cache
+      context
     )
     const transaction = this.prepareTransaction(
       {
         globalDependencies,
         appDependencies
       },
-      cache
+      context
     )
 
     this.transactor.setTransaction(transaction)
@@ -84,7 +87,7 @@ export class Proxify implements IInjector {
   }
   private prepareTransaction(
     { globalDependencies, appDependencies }: ISortedDependencies,
-    cache: IRendererCache
+    context: ContextUpdaterType
   ): Transaction {
     return async () => {
       let deferreds: Promise<{ [key: string]: any }>[] = []
@@ -92,8 +95,7 @@ export class Proxify implements IInjector {
       let thenables: Thenable[] = []
 
       Object.entries(appDependencies).forEach(([id, url]) => {
-        cache.set(id, {
-          ...cache.get(id),
+        context.set(id, {
           state: ERendererStates.FETCHING
         })
         deferreds = deferreds.concat(
@@ -132,8 +134,7 @@ export class Proxify implements IInjector {
       thenables.map(({ then }) =>
         then((resolve: IInjectorResource) => {
           if (resolve.appId) {
-            cache.set(resolve.appId, {
-              ...cache.get(resolve.appId),
+            context.set(resolve.appId, {
               state: ERendererStates.FETCHED
             })
           }

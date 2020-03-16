@@ -5,12 +5,11 @@ import {
   IConfigurer,
   RendererRenderArguments,
   RendererDestroyArguments,
-  IRendererCache,
   IInjector,
   ProxyValues,
   IRendererRender,
   IRenderDestroy,
-  IRendererCacheValues,
+  IRendererContextValues,
   IRepository,
   AnyAppId,
   IContainerCreator,
@@ -22,7 +21,9 @@ import {
   Callback,
   ObjectOf,
   HubsterEvents,
-  HubsterEventArguments
+  HubsterEventArguments,
+  IContexter,
+  Context
 } from '../../types'
 import { createLoader } from '../../utils/createLoader'
 import { has } from '../../utils/has'
@@ -57,27 +58,62 @@ export class Htmlify implements IRenderer<AnyAppId> {
   ]
   private transactor: ITransactor
   private configurer: IConfigurer
-  private cache: IRendererCache = new Map()
+  private context: Context<IRendererContextValues>
   @inject(ETypes.ASYNC) private async: IAsync
-  @inject(ETypes.INJECTOR) injector: IInjector
+  @inject(ETypes.INJECTOR) private injector: IInjector
+  @inject(ETypes.CONTEXTER) private contexter: IContexter
   init(configurer: IConfigurer, transactor: ITransactor): void {
+    this.context = this.contexter.createContext<IRendererContextValues>()
     this.configurer = configurer
     this.transactor = transactor
     this.injector.setTransactor(transactor)
   }
-  private getCacheValue(id: string): IRendererCacheValues {
-    if (this.cache.has(id)) {
-      return this.cache.get(id)
+  private hasElementInContext(id: string): boolean {
+    if (this.context.has(id)) {
+      return true
+      //throw new Error(`Please provide correct app name: ${id} does not exists`)
     }
-    throw new Error(`wrong key ( ${id} ) provided`)
+    return false
   }
-  private async setCacheValue(
+  private getContext(id: string): IRendererContextValues {
+    if (this.hasElementInContext(id)) {
+      return this.context[id]
+    }
+    console.warn(`${id} Not Provided - Returning dummy idle app`)
+    return {
+      selector: {
+        sel: '',
+        attrs: [],
+        type: ''
+      },
+      dependencies: [],
+      url: '',
+      subscribers: [],
+      render: undefined,
+      destroy: undefined,
+      state: ERendererStates.IDLE,
+      element: undefined,
+      refs: {}
+    }
+    // TODO think about if empty object are good
+    // throw new Error(`wrong key ( ${id} ) provided`)
+  }
+  private async setContext(
     id: string,
-    value: IRendererCacheValues
+    updater:
+      | ((context: IRendererContextValues) => Partial<IRendererContextValues>)
+      | Partial<IRendererContextValues>
   ): Promise<void> {
     //TODO: MAKE CACHE DIFF AND RETURN A CALLBACK
     return await this.async.setMutex(async () => {
-      this.cache.set(id, value)
+      const context = this.getContext(id)
+      this.context.set(
+        id,
+        Object.assign(
+          context,
+          typeof updater === 'function' ? updater.call(this, context) : updater
+        )
+      )
     })
   }
   private setProxy(id: string) {
@@ -85,13 +121,12 @@ export class Htmlify implements IRenderer<AnyAppId> {
       set: (obj, prop: ProxyValues, value: (...args: []) => {}) => {
         if (prop === EHubsterEvents.RENDER) {
           this.transactor.setTransaction(async () => {
-            await this.setCacheValue(id, {
-              ...this.getCacheValue(id),
+            await this.setContext(id, {
               render: value
             })
-            const cache = this.getCacheValue(id)
-            if (cache.render && cache.destroy) {
-              cache.subscribers.map(fn => {
+            const context = this.getContext(id)
+            if (context.render && context.destroy) {
+              context.subscribers.map(fn => {
                 fn()
               })
             }
@@ -99,13 +134,12 @@ export class Htmlify implements IRenderer<AnyAppId> {
         }
         if (prop === EHubsterEvents.DESTROY) {
           this.transactor.setTransaction(async () => {
-            await this.setCacheValue(id, {
-              ...this.getCacheValue(id),
+            await this.setContext(id, {
               destroy: value
             })
-            const cache = this.getCacheValue(id)
-            if (cache.render && cache.destroy) {
-              cache.subscribers.map(fn => {
+            const context = this.getContext(id)
+            if (context.render && context.destroy) {
+              context.subscribers.map(fn => {
                 fn()
               })
             }
@@ -122,7 +156,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
   public create(appIds: string[]): void {
     this.transactor.setTransaction(async () => {
       await this.async.forEach<string>(appIds, async id => {
-        if (this.cache.has(id)) {
+        if (this.hasElementInContext(id)) {
           return
         }
         const selector = this.configurer.getAppDefaultSelector(id)
@@ -131,7 +165,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
 
         this.setProxy(id)
 
-        await this.setCacheValue(id, {
+        await this.setContext(id, {
           selector,
           dependencies,
           url,
@@ -143,14 +177,11 @@ export class Htmlify implements IRenderer<AnyAppId> {
           refs: {}
         })
       })
-      this.injector.fetchDependencies(appIds, this.cache)
+      this.injector.fetchDependencies(appIds, {
+        get: this.getContext.bind(this),
+        set: this.setContext.bind(this)
+      })
     })
-  }
-  private checkForElementInCache(id: string): boolean {
-    if (!this.cache.has(id)) {
-      throw new Error(`Please provide correct app name: ${id} does not exists`)
-    }
-    return true
   }
   private createLoader(loader: Loader): HTMLElement | void {
     if (loader) {
@@ -182,7 +213,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
       // in case no element has been provided with the render call
 
       if (appElement && document.contains(appElement)) {
-        // if the cache has an element saved already an this element is mounted in the DOM
+        // if the context has an element saved already an this element is mounted in the DOM
         this.mountLoader(loader, appElement)
       } else if (!ref && document.querySelector(sel)) {
         // if the element is the one from the default provided / auto generated selector and is in the DOM
@@ -266,17 +297,17 @@ export class Htmlify implements IRenderer<AnyAppId> {
   private async createContainer(args: IContainerCreator): Promise<void> {
     const { loader, id, element, ref } = args
 
-    const cache = this.getCacheValue(id)
+    const context = this.getContext(id)
 
-    const { selector, element: appElement, refs: cachedReferences } = cache
+    const { selector, element: appElement, refs: contextdReferences } = context
 
     if (
-      (!ref && cache.state === ERendererStates.RENDERED) ||
-      (has(cachedReferences, ref) &&
-        cachedReferences[ref].state === ERendererStates.RENDERED)
+      (!ref && context.state === ERendererStates.RENDERED) ||
+      (has(contextdReferences, ref) &&
+        contextdReferences[ref].state === ERendererStates.RENDERED)
     ) {
       // in this case the "main" app is just trying to rerender
-      // OR in this case the ref in already in the cache and the element is rendered
+      // OR in this case the ref in already in the context and the element is rendered
       return
     }
     let domNode: HTMLElement | undefined = this.createDomNode({
@@ -286,7 +317,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
         : defaultFromPath<HTMLElement>(
             document.createElement('div'),
             [ref, 'element'],
-            cachedReferences
+            contextdReferences
           ),
       loader,
       selector,
@@ -295,15 +326,16 @@ export class Htmlify implements IRenderer<AnyAppId> {
 
     if (domNode) {
       if (ref) {
-        await this.setCacheValue(id, {
-          ...cache,
-          refs: {
-            ...cache.refs,
-            [ref]: { state: ERendererStates.IDLE, element: domNode }
+        await this.setContext(id, ({ refs }) => {
+          return {
+            refs: {
+              ...refs,
+              [ref]: { state: ERendererStates.IDLE, element: domNode }
+            }
           }
         })
       } else {
-        await this.setCacheValue(id, { ...cache, element: domNode })
+        await this.setContext(id, { element: domNode })
       }
     }
   }
@@ -315,23 +347,25 @@ export class Htmlify implements IRenderer<AnyAppId> {
   ): Promise<IRepository> {
     // The function will return an object ( Repository ) with the data required in order to be rendered / destroyed
     if (!args) {
-      // if the user didn't provide anything to the render / destroy function means that only the keys will be provided from the cache / created
+      // if the user didn't provide anything to the render / destroy function means that only the keys will be provided from the context / created
       // no refs will be rendered
       let keys = []
-      for (const key of this.cache.keys()) {
-        isRendering &&
-          (await this.createContainer({
-            element: undefined,
-            id: key,
-            loader: false
-          }))
-        keys = [...keys, key]
+      for (const key of this.context.keys()) {
+        if (typeof key === 'string') {
+          isRendering &&
+            (await this.createContainer({
+              element: undefined,
+              id: key,
+              loader: false
+            }))
+          keys = [...keys, key]
+        }
       }
       return { ids: new Set(keys) }
     } else if (isString(args)) {
-      // if the user provided a string to the render / destroy function means that only that one will be provided from the cache / created
+      // if the user provided a string to the render / destroy function means that only that one will be provided from the context / created
       // no refs will be rendered
-      if (this.checkForElementInCache(args)) {
+      if (this.hasElementInContext(args)) {
         isRendering &&
           (await this.createContainer({
             element: undefined,
@@ -353,7 +387,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
       >(args, async appToRender => {
         if (isString(appToRender)) {
           // in this case the argument is the id of the app to render ( no refs allowed )
-          if (this.checkForElementInCache(appToRender)) {
+          if (this.hasElementInContext(appToRender)) {
             isRendering &&
               (await this.createContainer({
                 element: undefined,
@@ -373,7 +407,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
             onRender,
             ref
           } = appToRender
-          if (this.checkForElementInCache(id)) {
+          if (this.hasElementInContext(id)) {
             if (props) {
               repositoryProps[ref || id] = props
             }
@@ -440,36 +474,37 @@ export class Htmlify implements IRenderer<AnyAppId> {
         if (has(refs, id)) {
           // in this case some objects with ref are provided - in this instance  objects with no refs are not rendered
           await this.async.forEach<string>(refs[id], async ref => {
-            const cache = this.getCacheValue(id)
-            const refFromCache = cache.refs[ref]
-            if (!refFromCache) {
+            const context = this.getContext(id)
+            const refFromContext = context.refs[ref]
+            if (!refFromContext) {
               throw new Error('TODO: ERROR HERE')
             }
             if (
-              cache.state === ERendererStates.FETCHED &&
-              (refFromCache.state === ERendererStates.DESTROYED ||
-                refFromCache.state === ERendererStates.IDLE)
+              context.state !== ERendererStates.IDLE &&
+              (refFromContext.state === ERendererStates.DESTROYED ||
+                refFromContext.state === ERendererStates.IDLE)
             ) {
               requestAnimationFrame(() => {
                 // TODO check how props are passed here
-                cache.render({
+                context.render({
                   ...(props[ref] && { props: props[ref] }),
                   ...(onRender[ref] && { onRender: onRender[ref] }),
-                  element: refFromCache.element
+                  element: refFromContext.element
                 })
               })
-              await this.setCacheValue(id, {
-                ...cache,
-                subscribers: [],
-                refs: {
-                  ...cache.refs,
-                  [ref]: {
-                    ...refFromCache,
-                    state: ERendererStates.RENDERED
+              await this.setContext(id, ({ refs: latestRefs }) => {
+                return {
+                  subscribers: [],
+                  refs: {
+                    ...latestRefs,
+                    [ref]: {
+                      ...latestRefs[ref],
+                      state: ERendererStates.RENDERED
+                    }
                   }
                 }
               })
-            } else if (refFromCache.state !== ERendererStates.RENDERED) {
+            } else if (refFromContext.state !== ERendererStates.RENDERED) {
               const self = this
               const f = function() {
                 if (isArray(args)) {
@@ -491,67 +526,68 @@ export class Htmlify implements IRenderer<AnyAppId> {
                 value: `render_${ref}`,
                 writable: false
               })
-              await this.setCacheValue(id, {
-                ...cache,
-                subscribers: [
-                  ...cache.subscribers.filter(
-                    fn => fn.name !== `render_${ref}`
-                  ),
-                  f
-                ],
-                refs: {
-                  ...cache.refs,
-                  [ref]: {
-                    ...refFromCache,
-                    state: ERendererStates.RENDERING
+              await this.setContext(id, ({ refs: latestRefs }) => {
+                return {
+                  subscribers: [
+                    ...context.subscribers.filter(
+                      fn => fn.name !== `render_${ref}`
+                    ),
+                    f
+                  ],
+                  refs: {
+                    ...latestRefs,
+                    [ref]: {
+                      ...latestRefs[ref],
+                      state: ERendererStates.RENDERING
+                    }
                   }
                 }
               })
             }
           })
         } else {
-          const cache = this.getCacheValue(id)
+          const context = this.getContext(id)
           if (
-            cache.state === ERendererStates.FETCHED ||
-            cache.state === ERendererStates.DESTROYED
+            context.state == ERendererStates.FETCHED ||
+            context.state === ERendererStates.DESTROYED
           ) {
             requestAnimationFrame(() => {
-              cache.render({
+              context.render({
                 ...(props[id] && { props: props[id] }),
                 ...(onRender[id] && { onRender: onRender[id] }),
-                element: cache.element
+                element: context.element
               })
             })
 
-            await this.setCacheValue(id, {
-              ...cache,
+            await this.setContext(id, {
               state: ERendererStates.RENDERED,
               subscribers: []
             })
-          } else if (cache.state !== ERendererStates.RENDERED) {
+          } else if (context.state !== ERendererStates.RENDERED) {
             const self = this
-            await this.setCacheValue(id, {
-              ...cache,
-              subscribers: [
-                ...cache.subscribers.filter(fn => fn.name !== 'render'),
-                function render() {
-                  if (isArray(args)) {
-                    self.render(
-                      args.filter(argument => {
-                        // in this instance put in the render queue only elements that have no ref attribute - hence the "main" app
-                        if (isString(argument) || !argument.ref) {
-                          return true
-                        } else {
-                          return false
-                        }
-                      })
-                    )
-                  } else {
-                    self.render(args)
+            await this.setContext(id, ({ subscribers }) => {
+              return {
+                subscribers: [
+                  ...subscribers.filter(fn => fn.name !== 'render'),
+                  function render() {
+                    if (isArray(args)) {
+                      self.render(
+                        args.filter(argument => {
+                          // in this instance put in the render queue only elements that have no ref attribute - hence the "main" app
+                          if (isString(argument) || !argument.ref) {
+                            return true
+                          } else {
+                            return false
+                          }
+                        })
+                      )
+                    } else {
+                      self.render(args)
+                    }
                   }
-                }
-              ],
-              state: ERendererStates.RENDERING
+                ],
+                state: ERendererStates.RENDERING
+              }
             })
           }
         }
@@ -567,33 +603,34 @@ export class Htmlify implements IRenderer<AnyAppId> {
         refs = {}
       } = await this.getRepositories(args, false)
       await this.async.forEach<string>(appIds, async id => {
-        const cache = this.getCacheValue(id)
+        const context = this.getContext(id)
         if (refs[id]) {
           await this.async.forEach<string>(refs[id], async ref => {
-            const refFromCache = cache.refs[ref]
-            if (!refFromCache) {
+            const refFromContext = context.refs[ref]
+            if (!refFromContext) {
               //  throw new Error('TODO: ERROR HERE')
               return
             }
-            if (refFromCache.state === ERendererStates.RENDERED) {
+            if (refFromContext.state === ERendererStates.RENDERED) {
               requestAnimationFrame(() => {
-                cache.destroy({
+                context.destroy({
                   ...(onDestroy[ref] && { onDestroy: onDestroy[ref] }),
-                  element: refFromCache.element
+                  element: refFromContext.element
                 })
               })
-              await this.setCacheValue(id, {
-                ...cache,
-                subscribers: [],
-                refs: {
-                  ...cache.refs,
-                  [ref]: {
-                    ...refFromCache,
-                    state: ERendererStates.DESTROYED
+              await this.setContext(id, ({ refs: latestRefs }) => {
+                return {
+                  subscribers: [],
+                  refs: {
+                    ...latestRefs,
+                    [ref]: {
+                      ...latestRefs[ref],
+                      state: ERendererStates.DESTROYED
+                    }
                   }
                 }
               })
-            } else if (refFromCache.state == ERendererStates.RENDERING) {
+            } else if (refFromContext.state == ERendererStates.RENDERING) {
               const self = this
               const f = function() {
                 if (isArray(args)) {
@@ -615,61 +652,60 @@ export class Htmlify implements IRenderer<AnyAppId> {
                 value: `destroy_${ref}`,
                 writable: false
               })
-              await this.setCacheValue(id, {
-                ...cache,
-                subscribers: [
-                  ...cache.subscribers.filter(
-                    fn => fn.name !== `destroy_${ref}`
-                  ),
-                  f
-                ],
-                refs: {
-                  ...cache.refs,
-                  [ref]: {
-                    ...refFromCache,
-                    state: ERendererStates.DESTROYNG
+              await this.setContext(id, ({ refs: latestRefs, subscribers }) => {
+                return {
+                  subscribers: [
+                    ...subscribers.filter(fn => fn.name !== `destroy_${ref}`),
+                    f
+                  ],
+                  refs: {
+                    ...latestRefs,
+                    [ref]: {
+                      ...latestRefs[ref],
+                      state: ERendererStates.DESTROYNG
+                    }
                   }
                 }
               })
             }
           })
         } else {
-          if (cache.state === ERendererStates.RENDERED) {
+          if (context.state === ERendererStates.RENDERED) {
             requestAnimationFrame(() => {
-              cache.destroy({
+              context.destroy({
                 ...(onDestroy[id] && { onDestroy: onDestroy[id] }),
-                element: cache.element
+                element: context.element
               })
             })
-            await this.setCacheValue(id, {
-              ...cache,
+            await this.setContext(id, {
               state: ERendererStates.DESTROYED,
               subscribers: []
             })
-          } else if (cache.state === ERendererStates.RENDERING) {
+          } else if (context.state === ERendererStates.RENDERING) {
             const self = this
-            await this.setCacheValue(id, {
-              ...cache,
-              subscribers: [
-                ...cache.subscribers.filter(fn => fn.name !== 'destroy'),
-                function destroy() {
-                  if (isArray(args)) {
-                    self.destroy(
-                      args.filter(argument => {
-                        // in this instance put in the destroy queue only elements that have no ref attribute - hence the "main" app
-                        if (isString(argument) || !argument.ref) {
-                          return false
-                        } else {
-                          return true
-                        }
-                      })
-                    )
-                  } else {
-                    self.destroy(args)
+            await this.setContext(id, ({ subscribers }) => {
+              return {
+                subscribers: [
+                  ...subscribers.filter(fn => fn.name !== 'destroy'),
+                  function destroy() {
+                    if (isArray(args)) {
+                      self.destroy(
+                        args.filter(argument => {
+                          // in this instance put in the destroy queue only elements that have no ref attribute - hence the "main" app
+                          if (isString(argument) || !argument.ref) {
+                            return false
+                          } else {
+                            return true
+                          }
+                        })
+                      )
+                    } else {
+                      self.destroy(args)
+                    }
                   }
-                }
-              ],
-              state: ERendererStates.DESTROYNG
+                ],
+                state: ERendererStates.DESTROYNG
+              }
             })
           }
         }
