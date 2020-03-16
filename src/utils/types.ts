@@ -1,4 +1,4 @@
-import { createHub } from '.'
+import { createHub } from '../'
 import { EHubsterEvents, ETransactorStates, ERendererStates } from './enums'
 
 // for enforcement

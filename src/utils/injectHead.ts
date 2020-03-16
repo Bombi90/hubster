@@ -1,4 +1,4 @@
-import { ResourceType } from '../types'
+import { ResourceType } from '../utils/types'
 
 export function injectHead<T extends { ['text']: string }>(
   doc: Document,

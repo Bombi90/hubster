@@ -1,5 +1,5 @@
 import { injectable } from 'inversify'
-import { IAsync } from '../types'
+import { IAsync } from '../utils/types'
 
 @injectable()
 export class Async implements IAsync {

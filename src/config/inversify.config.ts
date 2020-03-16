@@ -1,4 +1,5 @@
 import { Container } from 'inversify'
+import getDecorators from 'inversify-inject-decorators'
 import {
   IRenderer,
   IConfigurer,
@@ -8,16 +9,15 @@ import {
   ITransactor,
   IAsync,
   IContexter
-} from '../types'
-import { Jsonify } from './configurers/Jsonify'
-import { Htmlify } from './renderers/Htmlify'
-import { Fetchify } from './fetchers/Fetchify'
-import getDecorators from 'inversify-inject-decorators'
-import { Dependencify } from './injectors/Dependencify'
-import { Transactor } from './Transactor'
-import { Async } from './Async'
-import { Proxify } from './contexters/Proxify'
-import { ETypes } from '../enums'
+} from '../utils/types'
+import { Jsonify } from '../entities/configurers/Jsonify'
+import { Htmlify } from '../entities/renderers/Htmlify'
+import { Fetchify } from '../entities/fetchers/Fetchify'
+import { Dependencify } from '../entities/injectors/Dependencify'
+import { Transactor } from '../entities/Transactor'
+import { Async } from '../entities/Async'
+import { Proxify } from '../entities/contexters/Proxify'
+import { ETypes } from '../utils/enums'
 
 const hubContainer = new Container()
 hubContainer.bind<IRenderer<AnyAppId>>(ETypes.RENDERER).to(Htmlify)

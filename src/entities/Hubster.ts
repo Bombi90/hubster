@@ -7,10 +7,10 @@ import {
   RendererDestroyArguments,
   OnEventFunction,
   ITransactor
-} from './types'
-import { lazyInject } from './entities/inversify.config'
-import { has } from './utils/has'
-import { EHubsterEvents, ETypes } from './enums'
+} from '../utils/types'
+import { lazyInject } from '../config/inversify.config'
+import { has } from '../utils/helpers'
+import { EHubsterEvents, ETypes } from '../utils/enums'
 
 export class Hubster<AppId extends string> implements IHubster<AppId> {
   @lazyInject(ETypes.RENDERER)

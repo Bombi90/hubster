@@ -1,5 +1,5 @@
 import { injectable } from 'inversify'
-import { IContexter, Context, ProxiedMap } from '../../types'
+import { IContexter, Context, ProxiedMap } from '../../utils/types'
 
 // TODO: make that nicer
 @injectable()

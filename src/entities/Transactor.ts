@@ -5,8 +5,8 @@ import {
   TransactionQueue,
   ITransactor,
   Callback
-} from '../types'
-import { ETransactorStates } from '../enums'
+} from '../utils/types'
+import { ETransactorStates } from '../utils/enums'
 let requestIdleCallback
 if (!('requestIdleCallback' in window)) {
   requestIdleCallback = (cb: Callback, opts: { [key: string]: any }) =>

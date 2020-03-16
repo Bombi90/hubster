@@ -24,15 +24,17 @@ import {
   HubsterEventArguments,
   IContexter,
   Context
-} from '../../types'
+} from '../../utils/types'
 import { createLoader } from '../../utils/createLoader'
-import { has } from '../../utils/has'
-import { Hubster } from '../../Hubster'
-import { isArray } from '../../utils/isArray'
-import { isObject } from '../../utils/isObject'
-import { defaultFromPath } from '../../utils/defaultFromPath'
-import { EHubsterEvents, ETypes, ERendererStates } from '../../enums'
-import { isString } from '../../utils/isString'
+import {
+  has,
+  isArray,
+  isObject,
+  defaultFromPath,
+  isString
+} from '../../utils/helpers'
+import { Hubster } from '../../entities/Hubster'
+import { EHubsterEvents, ETypes, ERendererStates } from '../../utils/enums'
 
 @injectable()
 export class Htmlify implements IRenderer<AnyAppId> {

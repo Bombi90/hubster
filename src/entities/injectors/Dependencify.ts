@@ -9,10 +9,10 @@ import {
   ITransactor,
   Transaction,
   ContextUpdaterType
-} from '../../types'
+} from '../../utils/types'
 import { injectable, inject } from 'inversify'
 import { injectHead } from '../../utils/injectHead'
-import { ETypes, ERendererStates } from '../../enums'
+import { ETypes, ERendererStates } from '../../utils/enums'
 
 @injectable()
 export class Dependencify implements IInjector {

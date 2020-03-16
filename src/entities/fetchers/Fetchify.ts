@@ -1,4 +1,4 @@
-import { IFetcher } from '../../types'
+import { IFetcher } from '../../utils/types'
 import { injectable } from 'inversify'
 const { fetch } = window
 
