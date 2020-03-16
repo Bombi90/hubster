@@ -81,7 +81,6 @@ export class Htmlify implements IRenderer<AnyAppId> {
     if (this.hasElementInContext(id)) {
       return this.context[id]
     }
-    console.warn(`${id} Not Provided - Returning dummy idle app`)
     return {
       selector: {
         sel: '',
@@ -256,6 +255,9 @@ export class Htmlify implements IRenderer<AnyAppId> {
         } else if ('node' in element) {
           // if the object contains node - meaning that we have already the DOM Element
           const { node } = element
+          if (!document.contains(node)) {
+            throw new Error('The provided node is not in the DOM')
+          }
           domNode = node
           this.mountLoader(loader, domNode)
         } else {

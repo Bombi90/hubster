@@ -133,7 +133,7 @@ export type ProxyValues = HubsterEvents
 
 export interface IRepository {
   ids: Set<string>
-  props?: { [key: string]: any }
+  props?: Props
   onRender?: { [key: string]: Callback }
   onDestroy?: { [key: string]: Callback }
   refs?: { [key: string]: Set<string> }
