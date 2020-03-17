@@ -105,7 +105,6 @@ export class Htmlify implements IRenderer<AnyAppId> {
       | ((context: IRendererContextValues) => Partial<IRendererContextValues>)
       | Partial<IRendererContextValues>
   ): Promise<void> {
-    //TODO: MAKE CACHE DIFF AND RETURN A CALLBACK
     return await this.async.setMutex(async () => {
       const context = this.getContext(id)
       this.context.set(
