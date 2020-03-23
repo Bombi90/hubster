@@ -430,12 +430,15 @@ export class Htmlify implements IRenderer<AnyAppId> {
 
   private render(args: RendererRenderArguments<AnyAppId>): void {
     this.transactor.setTransaction(async () => {
-      const { ids: appIds, onRender, props, refs } = await this.getRepositories(
-        args,
-        true
-      )
+      const {
+        ids: appIds,
+        onRender = {},
+        props = {},
+        refs = {}
+      } = await this.getRepositories(args, true)
 
       await this.async.forEach<string>(appIds, async id => {
+        console.log({ refs, id })
         // iterate through every "main" app id got from the Repositories
         if (has(refs, id)) {
           // in this case some objects with ref are provided - in this instance  objects with no refs are not rendered

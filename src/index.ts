@@ -9,5 +9,6 @@ export function createHub<AppId extends string>(
 
 window.Hubster = {
   createHub,
-  on: Hubster.on
+  on: Hubster.on,
+  dispatch: Hubster.dispatch
 }
