@@ -10,7 +10,6 @@ export class Publishify {
     return Publishify.handlers.get(eventName) || new Set()
   }
 
-  // TODO: ADD REFLECT METADATA TO THE HANDLER
   private static setHandlers(eventName: string, handler: Callback): string {
     const metaName = `handler:${uuidv4()}`
     Reflect.defineMetadata(HUBSTER_HANDLER_NAME, metaName, handler)

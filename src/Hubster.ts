@@ -12,7 +12,7 @@ import {
 import { lazyInject } from './entities/inversify.config'
 import { has } from './utils/has'
 import { EHubsterEvents, ETypes } from './enums'
-import { isString } from 'util'
+import { isString } from './utils/isString'
 import { Publishify } from './entities/Publishify'
 
 export class Hubster<AppId extends string> implements IHubster<AppId> {
@@ -43,8 +43,9 @@ export class Hubster<AppId extends string> implements IHubster<AppId> {
     }
   }
   public static dispatch(actionName: string, payload: any) {
-    // TODO: check for both of these
-    Publishify.dispatch(actionName, payload)
+    if (isString(actionName) && actionName.length) {
+      Publishify.dispatch(actionName, payload)
+    }
   }
   constructor(config: IConfiguration<AppId>) {
     this.configurer.setConfiguration(config)
