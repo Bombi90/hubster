@@ -1,16 +1,24 @@
 import { Callback } from '../types'
+import { uuidv4 } from '../utils/uuiv4'
 const HUBSTER_PUBLISH_EVENT = '__hubster:publish__'
+const HUBSTER_HANDLER_NAME = '__hubster:handler__'
+
 export class Publishify {
   private static state = 'idle'
   private static handlers: Map<string, Set<Callback>> = new Map()
-  private static getHandlers(eventName) {
+  private static getHandlers(eventName: string): Set<Callback> {
     return Publishify.handlers.get(eventName) || new Set()
   }
-  private static setHandlers(eventName, handler) {
+
+  // TODO: ADD REFLECT METADATA TO THE HANDLER
+  private static setHandlers(eventName: string, handler: Callback): string {
+    const metaName = `handler:${uuidv4()}`
+    Reflect.defineMetadata(HUBSTER_HANDLER_NAME, metaName, handler)
     const handlers = Publishify.getHandlers(eventName)
-    return Publishify.handlers.set(eventName, handlers.add(handler))
+    Publishify.handlers.set(eventName, handlers.add(handler))
+    return metaName
   }
-  static listen() {
+  static listen(): void {
     if (Publishify.state === 'idle') {
       addEventListener(HUBSTER_PUBLISH_EVENT, (event: CustomEvent) => {
         const { eventName, payload } = event.detail
@@ -21,12 +29,10 @@ export class Publishify {
     }
   }
   static register(eventName: string, handler: Callback): Callback {
-    // called by the Hubster.on when an action is registered
-    // give custom function names to the handlers
-    Publishify.setHandlers(eventName, handler)
-    return () => Publishify.unsubscribe(eventName, handler.name)
+    const handlerName = Publishify.setHandlers(eventName, handler)
+    return () => Publishify.unsubscribe(eventName, handlerName)
   }
-  static dispatch(eventName: string, payload: any) {
+  static dispatch(eventName: string, payload: any): void {
     dispatchEvent(
       new CustomEvent(HUBSTER_PUBLISH_EVENT, {
         detail: { eventName, payload }
@@ -36,7 +42,12 @@ export class Publishify {
   private static unsubscribe(eventName: string, handlerName: string) {
     const handlers = Publishify.getHandlers(eventName)
     handlers.forEach(callback => {
-      if (callback.name === handlerName) {
+      console.log('UNSUBSCRIBING ', handlerName)
+      console.log(
+        'GETTING METADATA ',
+        Reflect.getMetadata(HUBSTER_HANDLER_NAME, callback)
+      )
+      if (Reflect.getMetadata(HUBSTER_HANDLER_NAME, callback) === handlerName) {
         handlers.delete(callback)
       }
     })
