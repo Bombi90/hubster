@@ -430,10 +430,12 @@ export class Htmlify implements IRenderer<AnyAppId> {
 
   private render(args: RendererRenderArguments<AnyAppId>): void {
     this.transactor.setTransaction(async () => {
-      const { ids: appIds, onRender, props, refs } = await this.getRepositories(
-        args,
-        true
-      )
+      const {
+        ids: appIds,
+        onRender = {},
+        props = {},
+        refs = {}
+      } = await this.getRepositories(args, true)
 
       await this.async.forEach<string>(appIds, async id => {
         // iterate through every "main" app id got from the Repositories
@@ -450,13 +452,13 @@ export class Htmlify implements IRenderer<AnyAppId> {
               (refFromCache.state === ERendererStates.DESTROYED ||
                 refFromCache.state === ERendererStates.IDLE)
             ) {
-              requestAnimationFrame(() => {
-                // TODO check how props are passed here
+              const timer = requestAnimationFrame(() => {
                 cache.render({
                   ...(props[ref] && { props: props[ref] }),
                   ...(onRender[ref] && { onRender: onRender[ref] }),
                   element: refFromCache.element
                 })
+                cancelAnimationFrame(timer)
               })
               await this.setCacheValue(id, {
                 ...cache,
@@ -515,12 +517,13 @@ export class Htmlify implements IRenderer<AnyAppId> {
             cache.state === ERendererStates.FETCHED ||
             cache.state === ERendererStates.DESTROYED
           ) {
-            requestAnimationFrame(() => {
+            const timer = requestAnimationFrame(() => {
               cache.render({
                 ...(props[id] && { props: props[id] }),
                 ...(onRender[id] && { onRender: onRender[id] }),
                 element: cache.element
               })
+              cancelAnimationFrame(timer)
             })
 
             await this.setCacheValue(id, {
@@ -576,11 +579,12 @@ export class Htmlify implements IRenderer<AnyAppId> {
               return
             }
             if (refFromCache.state === ERendererStates.RENDERED) {
-              requestAnimationFrame(() => {
+              const timer = requestAnimationFrame(() => {
                 cache.destroy({
                   ...(onDestroy[ref] && { onDestroy: onDestroy[ref] }),
                   element: refFromCache.element
                 })
+                cancelAnimationFrame(timer)
               })
               await this.setCacheValue(id, {
                 ...cache,
@@ -635,11 +639,12 @@ export class Htmlify implements IRenderer<AnyAppId> {
           })
         } else {
           if (cache.state === ERendererStates.RENDERED) {
-            requestAnimationFrame(() => {
+            const timer = requestAnimationFrame(() => {
               cache.destroy({
                 ...(onDestroy[id] && { onDestroy: onDestroy[id] }),
                 element: cache.element
               })
+              cancelAnimationFrame(timer)
             })
             await this.setCacheValue(id, {
               ...cache,
