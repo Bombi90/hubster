@@ -467,10 +467,12 @@ export class Htmlify implements IRenderer<AnyAppId> {
 
   private render(args: RendererRenderArguments<AnyAppId>): void {
     this.transactor.setTransaction(async () => {
-      const { ids: appIds, onRender, props, refs } = await this.getRepositories(
-        args,
-        true
-      )
+      const {
+        ids: appIds,
+        onRender = {},
+        props = {},
+        refs = {}
+      } = await this.getRepositories(args, true)
 
       await this.async.forEach<string>(appIds, async id => {
         // iterate through every "main" app id got from the Repositories
@@ -487,13 +489,13 @@ export class Htmlify implements IRenderer<AnyAppId> {
               (refFromContext.state === ERendererStates.DESTROYED ||
                 refFromContext.state === ERendererStates.IDLE)
             ) {
-              requestAnimationFrame(() => {
-                // TODO check how props are passed here
+              const timer = requestAnimationFrame(() => {
                 context.render({
                   ...(props[ref] && { props: props[ref] }),
                   ...(onRender[ref] && { onRender: onRender[ref] }),
                   element: refFromContext.element
                 })
+                cancelAnimationFrame(timer)
               })
               await this.setContext(id, ({ refs: latestRefs }) => {
                 return {
@@ -554,12 +556,13 @@ export class Htmlify implements IRenderer<AnyAppId> {
             context.state == ERendererStates.FETCHED ||
             context.state === ERendererStates.DESTROYED
           ) {
-            requestAnimationFrame(() => {
+            const timer = requestAnimationFrame(() => {
               context.render({
                 ...(props[id] && { props: props[id] }),
                 ...(onRender[id] && { onRender: onRender[id] }),
                 element: context.element
               })
+              cancelAnimationFrame(timer)
             })
 
             await this.setContext(id, {
@@ -615,11 +618,12 @@ export class Htmlify implements IRenderer<AnyAppId> {
               return
             }
             if (refFromContext.state === ERendererStates.RENDERED) {
-              requestAnimationFrame(() => {
+              const timer = requestAnimationFrame(() => {
                 context.destroy({
                   ...(onDestroy[ref] && { onDestroy: onDestroy[ref] }),
                   element: refFromContext.element
                 })
+                cancelAnimationFrame(timer)
               })
               await this.setContext(id, ({ refs: latestRefs }) => {
                 return {
@@ -674,11 +678,12 @@ export class Htmlify implements IRenderer<AnyAppId> {
           })
         } else {
           if (context.state === ERendererStates.RENDERED) {
-            requestAnimationFrame(() => {
+            const timer = requestAnimationFrame(() => {
               context.destroy({
                 ...(onDestroy[id] && { onDestroy: onDestroy[id] }),
                 element: context.element
               })
+              cancelAnimationFrame(timer)
             })
             await this.setContext(id, {
               state: ERendererStates.DESTROYED,

@@ -4,7 +4,6 @@ import { EHubsterEvents, ETransactorStates, ERendererStates } from './enums'
 // for enforcement
 export type AnyAppId = string
 export type Callback = (...args: any[]) => void | any
-export type EventValues = ProxyValues
 export type Props = { [key: string]: any }
 export type Loader = HTMLElement | boolean
 export type ObjectOf<T> = { [key: string]: T }
@@ -49,11 +48,7 @@ export interface IConfiguration<T extends AnyAppId> {
   apps: IApp<T>[]
   global_dependencies: IGlobalDependency[]
 }
-export type OnEventFunction = (
-  event: EventValues,
-  id: string,
-  callback: Callback
-) => any | void
+export type OnEventFunction = (event: string, callback: Callback) => any | void
 
 /**
  *
@@ -206,9 +201,6 @@ export interface IInjector {
   setTransactor(t: ITransactor): void
   fetchDependencies(appIds: string[], context: ContextUpdaterType): void
 }
-// export interface IUpdater {
-//   createState(): Updatable
-// }
 export interface IHubster<AppId extends AnyAppId> {
   bind(appIds: AppId[]): IHubster<AppId>
   render(args: RendererRenderArguments<AppId>): void
@@ -252,6 +244,7 @@ declare global {
     Hubster: {
       createHub: typeof createHub
       on: OnEventFunction
+      dispatch: (eventName: string, payload: any) => void
     }
   }
 }
