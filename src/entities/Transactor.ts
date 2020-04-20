@@ -57,7 +57,7 @@ export class Transactor implements ITransactor {
     return async () => Promise.resolve()
   }
   setTransaction(transaction: Transaction): void {
-    window.requestIdleCallback(
+    requestIdleCallback(
       () => {
         const key = this.getNewTransactionKey()
         this.queue.set(key, transaction)
