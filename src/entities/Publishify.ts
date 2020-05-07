@@ -41,11 +41,6 @@ export class Publishify {
   private static unsubscribe(eventName: string, handlerName: string) {
     const handlers = Publishify.getHandlers(eventName)
     handlers.forEach(callback => {
-      console.log('UNSUBSCRIBING ', handlerName)
-      console.log(
-        'GETTING METADATA ',
-        Reflect.getMetadata(HUBSTER_HANDLER_NAME, callback)
-      )
       if (Reflect.getMetadata(HUBSTER_HANDLER_NAME, callback) === handlerName) {
         handlers.delete(callback)
       }

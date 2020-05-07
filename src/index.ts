@@ -7,8 +7,23 @@ export function createHub<AppId extends string>(
   return new Hubster<AppId>(config)
 }
 
-window.Hubster = {
+const getter = Object.freeze({
   createHub,
   on: Hubster.on,
   dispatch: Hubster.dispatch
+})
+
+const descriptor: PropertyDescriptor = {
+  enumerable: false,
+  configurable: false,
+  get() {
+    return getter
+  },
+  set() {
+    return
+  }
+}
+const isHubsterLoaded = 'Hubster' in window
+if (!isHubsterLoaded) {
+  Object.defineProperty(window, 'Hubster', descriptor)
 }
