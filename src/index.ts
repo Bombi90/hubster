@@ -1,5 +1,5 @@
-import { Hubster } from './Hubster'
-import { IHubster, IConfiguration } from './types'
+import { Hubster } from './entities/Hubster'
+import { IHubster, IConfiguration } from './utils/types'
 
 export function createHub<AppId extends string>(
   config: IConfiguration<AppId>

@@ -8,12 +8,12 @@ import {
   OnEventFunction,
   ITransactor,
   Callback
-} from './types'
-import { lazyInject } from './entities/inversify.config'
-import { has } from './utils/has'
-import { EHubsterEvents, ETypes } from './enums'
-import { isString } from './utils/isString'
-import { Publishify } from './entities/Publishify'
+} from '../utils/types'
+import { lazyInject } from '../config/inversify.config'
+import { has } from '../utils/helpers'
+import { EHubsterEvents, ETypes } from '../utils/enums'
+import { isString } from '../utils/helpers'
+import { Publishify } from '../entities/Publishify'
 
 export class Hubster<AppId extends string> implements IHubster<AppId> {
   @lazyInject(ETypes.RENDERER)

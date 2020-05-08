@@ -7,7 +7,7 @@ import {
   IApp,
   IConfiguration,
   AnyAppId
-} from '../../types'
+} from '../../utils/types'
 
 @injectable()
 export class Jsonify implements IConfigurer {

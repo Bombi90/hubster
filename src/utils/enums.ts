@@ -10,7 +10,8 @@ export enum ETypes {
   FETCHER = 'Fetcher',
   INJECTOR = 'Injector',
   ASYNC = 'Async',
-  TRANSACTOR = 'Transactor'
+  TRANSACTOR = 'Transactor',
+  CONTEXTER = 'Contexter'
 }
 
 export enum ETransactorStates {

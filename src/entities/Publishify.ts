@@ -1,5 +1,5 @@
-import { Callback } from '../types'
 import { uuidv4 } from '../utils/uuiv4'
+import { Callback } from '../utils/types'
 const HUBSTER_PUBLISH_EVENT = '__hubster:publish__'
 const HUBSTER_HANDLER_NAME = '__hubster:handler__'
 
