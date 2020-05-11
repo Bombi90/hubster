@@ -1,10 +1,9 @@
-export enum EHubsterEvents {
+export enum EHubEvents {
   RENDER = 'render',
   DESTROY = 'destroy'
 }
 
 export enum ETypes {
-  HUBSTER = 'Hubster',
   CONFIGURER = 'Configurer',
   RENDERER = 'Renderer',
   FETCHER = 'Fetcher',

@@ -1,5 +1,4 @@
-import { createHub } from '.'
-import { EHubsterEvents, ETransactorStates, ERendererStates } from './enums'
+import { ETransactorStates, ERendererStates, EHubEvents } from './enums'
 
 // for enforcement
 export type AnyAppId = string
@@ -7,10 +6,10 @@ export type Callback = (...args: any[]) => void | any
 export type Props = { [key: string]: any }
 export type Loader = HTMLElement | boolean
 export type ObjectOf<T> = { [key: string]: T }
-export type HubsterEvents = EHubsterEvents.RENDER | EHubsterEvents.DESTROY
+export type HubsterEvents = EHubEvents.RENDER | EHubEvents.DESTROY
 interface IHubstserEventArguments<T extends string> {
-  [EHubsterEvents.RENDER]: RendererRenderArguments<T>
-  [EHubsterEvents.DESTROY]: RendererDestroyArguments<T>
+  [EHubEvents.RENDER]: RendererRenderArguments<T>
+  [EHubEvents.DESTROY]: RendererDestroyArguments<T>
 }
 // type ValueOf<T> = T[keyof T]
 export type HubsterEventArguments<K extends string, T> = T extends HubsterEvents
@@ -48,7 +47,10 @@ export interface IConfiguration<T extends AnyAppId> {
   apps: IApp<T>[]
   global_dependencies: IGlobalDependency[]
 }
-export type OnEventFunction = (event: string, callback: Callback) => any | void
+export type OnEventFunction = (
+  event: string,
+  callback: Callback
+) => void | Callback
 
 /**
  *
@@ -190,10 +192,17 @@ export interface IInjector {
   fetchDependencies(appIds: string[], cache: IRendererCache): void
 }
 
-export interface IHubster<AppId extends AnyAppId> {
-  bind(appIds: AppId[]): IHubster<AppId>
+export interface IHub<AppId extends AnyAppId> {
+  bind(appIds: AppId[]): IHub<AppId>
   render(args: RendererRenderArguments<AppId>): void
   destroy(args: RendererDestroyArguments<AppId>): void
+}
+// TODO: Create interface for Publishify
+export interface IHubster {
+  createHub<AppId extends string>(config: IConfiguration<AppId>): IHub<AppId>
+  on: OnEventFunction
+  dispatch: (eventName: string, payload: any) => void
+  __publisher: any
 }
 
 // For Transactor
@@ -230,11 +239,7 @@ declare global {
       opts?: RequestIdleCallbackOptions
     ) => RequestIdleCallbackHandle
     cancelIdleCallback: (handle: RequestIdleCallbackHandle) => void
-    Hubster: {
-      createHub: typeof createHub
-      on: OnEventFunction
-      dispatch: (eventName: string, payload: any) => void
-    }
+    Hubster: IHubster
   }
 }
 
