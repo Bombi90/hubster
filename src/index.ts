@@ -14,3 +14,5 @@ const isHubsterLoaded = 'Hubster' in window
 if (!isHubsterLoaded) {
   Object.defineProperty(window, 'Hubster', descriptor)
 }
+
+export default Hubster
