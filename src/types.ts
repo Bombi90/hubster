@@ -197,7 +197,18 @@ export interface IHub<AppId extends AnyAppId> {
   render(args: RendererRenderArguments<AppId>): void
   destroy(args: RendererDestroyArguments<AppId>): void
 }
-// TODO: Create interface for Publishify
+
+export interface IPublisher {
+  state: 'idle' | 'listening'
+  handlers: Map<string, Set<Callback>>
+  getHandlers: (eventName: string) => Set<Callback>
+  setHandlers: (eventName: string, handler: Callback) => string
+  listen: () => void
+  register: (eventName: string, payload: any) => void
+  dispatch: (eventName: string, payload: any) => void
+  unsubscribe: (eventName: string, handlerName: string) => void
+}
+
 export interface IHubster {
   createHub<AppId extends string>(config: IConfiguration<AppId>): IHub<AppId>
   on: OnEventFunction

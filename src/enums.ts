@@ -26,3 +26,8 @@ export enum ERendererStates {
   RENDERING = 'rendering',
   DESTROYNG = 'destroying'
 }
+
+export enum EPublisherStates {
+  LISTENING = 'listening',
+  IDLE = 'idle'
+}

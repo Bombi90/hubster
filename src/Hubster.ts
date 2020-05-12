@@ -4,7 +4,7 @@ import { EHubEvents } from './enums'
 import { isString } from './utils/isString'
 import { has } from './utils/has'
 import { windowProxy } from './utils/windowProxy'
-import { Publishify } from './entities/Publishify'
+import { publisher } from './entities/publisher'
 
 const ProtectedHubster: IHubster = {
   on(action, callback) {
@@ -33,7 +33,7 @@ const ProtectedHubster: IHubster = {
   createHub<AppId extends string>(config: IConfiguration<AppId>): IHub<AppId> {
     return new Hub<AppId>(config)
   },
-  __publisher: Publishify
+  __publisher: publisher
 }
 
 export const Hubster = windowProxy(ProtectedHubster, 'Hubster')
