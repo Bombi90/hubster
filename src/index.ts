@@ -1,23 +1,10 @@
 import { Hubster } from './Hubster'
-import { IHubster, IConfiguration } from './types'
-
-export function createHub<AppId extends string>(
-  config: IConfiguration<AppId>
-): IHubster<AppId> {
-  return new Hubster<AppId>(config)
-}
-
-const getter = Object.freeze({
-  createHub,
-  on: Hubster.on,
-  dispatch: Hubster.dispatch
-})
 
 const descriptor: PropertyDescriptor = {
   enumerable: false,
   configurable: false,
   get() {
-    return getter
+    return Hubster
   },
   set() {
     return

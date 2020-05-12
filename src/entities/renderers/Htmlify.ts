@@ -30,7 +30,7 @@ import { Hubster } from '../../Hubster'
 import { isArray } from '../../utils/isArray'
 import { isObject } from '../../utils/isObject'
 import { defaultFromPath } from '../../utils/defaultFromPath'
-import { EHubsterEvents, ETypes, ERendererStates } from '../../enums'
+import { EHubEvents, ETypes, ERendererStates } from '../../enums'
 import { isString } from '../../utils/isString'
 
 @injectable()
@@ -83,7 +83,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
   private setProxy(id: string) {
     const handler = {
       set: (obj, prop: ProxyValues, value: (...args: []) => {}) => {
-        if (prop === EHubsterEvents.RENDER) {
+        if (prop === EHubEvents.RENDER) {
           this.transactor.setTransaction(async () => {
             await this.setCacheValue(id, {
               ...this.getCacheValue(id),
@@ -97,7 +97,7 @@ export class Htmlify implements IRenderer<AnyAppId> {
             }
           })
         }
-        if (prop === EHubsterEvents.DESTROY) {
+        if (prop === EHubEvents.DESTROY) {
           this.transactor.setTransaction(async () => {
             await this.setCacheValue(id, {
               ...this.getCacheValue(id),
@@ -415,15 +415,15 @@ export class Htmlify implements IRenderer<AnyAppId> {
   }
   trigger(
     event: HubsterEvents,
-    args: HubsterEventArguments<AnyAppId, EHubsterEvents.DESTROY>
+    args: HubsterEventArguments<AnyAppId, EHubEvents.DESTROY>
   ): void
   trigger(
     event: HubsterEvents,
-    args: HubsterEventArguments<AnyAppId, EHubsterEvents.RENDER>
+    args: HubsterEventArguments<AnyAppId, EHubEvents.RENDER>
   ): void {
-    if (event === EHubsterEvents.RENDER) {
+    if (event === EHubEvents.RENDER) {
       this.render(args)
-    } else if (event === EHubsterEvents.DESTROY) {
+    } else if (event === EHubEvents.DESTROY) {
       this.destroy(args)
     }
   }
